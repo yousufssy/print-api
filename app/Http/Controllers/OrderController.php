@@ -22,7 +22,7 @@ class OrderController extends Controller
         // استخدام query builder مباشرة مع اختيار الأعمدة الضرورية فقط
         $query = Order::query()
             ->select([
-                'row_id','ID','Year','Ser','Customer','Eng_Name',
+                'ID','Year','Ser','Customer','Eng_Name',
                 'date_come','Apoent_Delv_date','Demand','Clr_qunt',
                 'Printed','Billed','Reseved','grnd_qunt','Pattern','Machin_Print'
             ])
@@ -54,7 +54,7 @@ class OrderController extends Controller
 
         // استخدام pagination + count منفصل لتحسين الأداء مع البيانات الكبيرة
         $page = (int) $request->get('page', 1);
-        $orders = $query->orderByDesc('row_id')
+        $orders = $query->orderByDesc('ID')
                         ->skip(($page - 1) * self::PER_PAGE)
                         ->take(self::PER_PAGE)
                         ->get();
