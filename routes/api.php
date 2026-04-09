@@ -9,33 +9,20 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ActionController;
 
-// ─── Public ───────────────────────────────────────────
+// ─── All Public ───────────────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/me', fn(Request $r) => $r->user());
+Route::post('/logout', [AuthController::class, 'logout']);
+
 Route::get('/dashboard', [DashboardController::class, 'index']);
 
-// ─── Authenticated ────────────────────────────────────
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/me', fn(Request $r) => $r->user());
-    Route::post('/logout', [AuthController::class, 'logout']);
+Route::get('/orders', [OrderController::class, 'index']);
+Route::post('/orders', [OrderController::class, 'store']);
+Route::get('/orders/{id}/{year}', [OrderController::class, 'show']);
+Route::put('/orders/{id}/{year}', [OrderController::class, 'update']);
+Route::delete('/orders/{id}/{year}', [OrderController::class, 'destroy']);
 
-    // Orders
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders', [OrderController::class, 'store']);
-    Route::get('/orders/{id}/{year}', [OrderController::class, 'show']);
-    Route::put('/orders/{id}/{year}', [OrderController::class, 'update']);
-    Route::delete('/orders/{id}/{year}', [OrderController::class, 'destroy'])->middleware('admin');
-
-    // Vouchers
-    Route::apiResource('vouchers', VoucherController::class);
-
-    // Customers
-    Route::apiResource('customers', CustomerController::class);
-
-    // Actions
-    Route::apiResource('actions', ActionController::class);
-
-    // ─── Admin only ───────────────────────────────────
-    Route::middleware('admin')->group(function () {
-        Route::apiResource('users', UserController::class);
-    });
-});
+Route::apiResource('vouchers', VoucherController::class);
+Route::apiResource('customers', CustomerController::class);
+Route::apiResource('actions', ActionController::class);
+Route::apiResource('users', UserController::class);
