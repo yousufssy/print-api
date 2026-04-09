@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Voucher extends Model
 {
     protected $table      = 'vouchers';
-    protected $primaryKey = 'row_id';
+    protected $primaryKey = 'ID';
     public    $timestamps = false;
 
     protected $fillable = [
