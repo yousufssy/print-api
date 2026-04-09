@@ -12,7 +12,7 @@ class Order extends Model
     public    $timestamps = false;
 
    protected $fillable = [
-    'row_id', 'Ser', 'ID', 'Customer', 'date_come', 'Agre_Date', 'Apoent_Delv_date', 'delev_date', 'Perioud',
+     'Ser', 'ID', 'Customer', 'date_come', 'Agre_Date', 'Apoent_Delv_date', 'delev_date', 'Perioud',
     'Demand', 'Med_smpl_Q', 'Qunt_Dlv', 'unit', 'Pattern', 'Pattern2', 'ear', 'UnitMed', 'Form', 'ExplForm',
     'Loading', 'Notes1', 'Code_M', 'authorization', 'Price', 'Free_txt', 'Free_clr', 'Code', 'Mix_num', 'ProDate',
     'ExpDate', 'Authr_co', 'Eng_Name', 'Pat_Num', 'SoftU', 'TafU', 'LongU', 'WedthU', 'HightU', 'Lesan', 'MontagNum',
