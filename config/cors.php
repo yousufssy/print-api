@@ -3,7 +3,7 @@
 return [
     'paths'                    => ['api/*', 'sanctum/csrf-cookie'],
     'allowed_methods'          => ['*'],
-    'allowed_origins'          => [env('FRONTEND_URL', 'https://print-app-production.up.railway.app')],
+    'allowed_origins'          => ['*'],
     'allowed_origins_patterns' => [],
     'allowed_headers'          => ['*'],
     'exposed_headers'          => [],
