@@ -16,7 +16,7 @@ class VoucherController extends Controller
         $q = Voucher::where('Year', $year);
         if ($id) $q->where('ID', $id);
 
-        return response()->json($q->orderBy('row_id')->get());
+        return response()->json($q->orderBy('ID')->get());
     }
 
     public function store(Request $request): JsonResponse
