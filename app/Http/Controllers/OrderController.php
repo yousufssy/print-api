@@ -74,17 +74,32 @@ class OrderController extends Controller
     // إنشاء طلب
     // ─────────────────────────────────────────
     public function store(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'ID'       => 'required|string|max:50',
-            'Year'     => 'required|integer',
-            'Customer' => 'required|string|max:255',
-        ]);
+{
+    $validated = $request->validate([
+        'ID'       => 'required|string|max:50',
+        'Year'     => 'required|integer',
+        'Customer' => 'required|string|max:255',
+    ]);
 
-        $order = Order::create($request->all());
+    $data = $request->all();
 
-        return response()->json($order, 201);
+    // حوّل "True"/"False" لـ 1/0
+    $booleanFields = [
+        'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+        'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+        'rolling', 'rollingBack', 'Reseved', 'tabkha', 'bals'
+    ];
+
+    foreach ($booleanFields as $field) {
+        if (isset($data[$field])) {
+            $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+        }
     }
+
+    $order = Order::create($data);
+
+    return response()->json($order, 201);
+}
 
     // ─────────────────────────────────────────
     // عرض طلب
