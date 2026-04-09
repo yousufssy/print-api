@@ -16,10 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\AdminOnly::class,
         ]);
 
-        // Exclude all API routes from CSRF verification
         $middleware->validateCsrfTokens(except: [
             'api/*',
         ]);
+
+        $middleware->prepend(
+            \Illuminate\Http\Middleware\HandleCors::class
+        );
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, $request) {
