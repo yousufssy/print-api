@@ -90,20 +90,15 @@ class OrderController extends Controller
     // عرض طلب
     // ─────────────────────────────────────────
     public function show($id, $year): JsonResponse
-    {
-        $order = Order::where('ID', $id)
-                      ->where('Year', $year)
-                      ->select([
-                          'row_id','ID','Year','Ser','Customer','Eng_Name',
-                          'date_come','Apoent_Delv_date','Demand','Clr_qunt',
-                          'Printed','Billed','Reseved','grnd_qunt','Pattern','Machin_Print'
-                      ])
-                      ->firstOrFail();
-
-        $order->load('vouchers');
-
-        return response()->json($order);
-    }
+        {
+            $order = Order::where('ID', $id)
+                          ->where('Year', $year)
+                          ->firstOrFail();
+        
+            $order->load('vouchers');
+        
+            return response()->json($order);
+        }
 
     // ─────────────────────────────────────────
     // تحديث طلب
