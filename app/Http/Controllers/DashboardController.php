@@ -33,8 +33,8 @@ class DashboardController extends Controller
 
         // Recent 10 orders
         $recent = $base()
-            ->select(['row_id','ID','Year','Customer','Eng_Name','date_come','Demand','Printed','Billed','Reseved'])
-            ->orderByDesc('row_id')
+            ->select(['ID','Year','Customer','Eng_Name','date_come','Demand','Printed','Billed','Reseved'])
+            ->orderByDesc('ID')
             ->limit(10)
             ->get();
 
