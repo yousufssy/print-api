@@ -76,9 +76,9 @@ class OrderController extends Controller
     public function store(Request $request): JsonResponse
 {
     $validated = $request->validate([
-        'ID'       => 'required|string|max:50',
+        'ID'       => 'required',
         'Year'     => 'required|integer',
-        'Customer' => 'required|string|max:255',
+        'Customer' => 'nullable|string|max:255',
     ]);
 
     $data = $request->all();
