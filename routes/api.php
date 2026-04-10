@@ -10,6 +10,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\ActionController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ProblemController;
+use App\Http\Controllers\CartonController;
 
 // ─── All Public ───────────────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
@@ -30,3 +31,4 @@ Route::apiResource('actions',    ActionController::class);
 Route::apiResource('users',      UserController::class);
 Route::apiResource('materials',  MaterialController::class);
 Route::apiResource('problems',   ProblemController::class);
+Route::apiResource('cartons',    CartonController::class);
