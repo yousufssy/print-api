@@ -8,7 +8,9 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ActionController;
+use App\Http\Controllers\UploadController;
 
+Route::post('/upload', [UploadController::class, 'upload']);
 // ─── All Public ───────────────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/me', fn(Request $r) => $r->user());
