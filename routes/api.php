@@ -15,6 +15,7 @@ Route::get('/me', fn(Request $r) => $r->user());
 Route::post('/logout', [AuthController::class, 'logout']);
 
 Route::get('/dashboard', [DashboardController::class, 'index']);
+Route::apiResource('cartons', CartonController::class);
 
 Route::get('/orders', [OrderController::class, 'index']);
 Route::post('/orders', [OrderController::class, 'store']);
