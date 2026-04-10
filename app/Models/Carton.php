@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Carton extends Model
 {
-    protected $table = 'your_table_name';
+    protected $table = 'Carton';
 
     protected $fillable = [
         'ID1',
