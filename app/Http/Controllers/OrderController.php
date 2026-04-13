@@ -110,7 +110,7 @@ class OrderController extends Controller
                           ->where('Year', $year)
                           ->firstOrFail();
         
-            $order->load('Vouchers');
+            $order->load('vouchers');
         
             return response()->json($order);
         }
