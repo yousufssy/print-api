@@ -20,7 +20,8 @@ class CartonController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $c = Carton::create($request->all());
+        $data = $request->except(['_isNew', '_rowId', '_ID']);
+        $c = Carton::create($data);
         return response()->json($c, 201);
     }
 
@@ -32,7 +33,8 @@ class CartonController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $c = Carton::findOrFail($id);
-        $c->update($request->all());
+        $data = $request->except(['_isNew', '_rowId', '_ID', 'ID', 'year']);
+        $c->update($data);
         return response()->json($c);
     }
 
