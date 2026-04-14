@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Material extends Model
 {
     protected $table      = 'materials';
-    protected $primaryKey = '_ID';
+    protected $primaryKey = 'ID';
     public    $timestamps = false;
 
     protected $fillable = [
