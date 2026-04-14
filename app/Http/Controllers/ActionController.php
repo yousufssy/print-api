@@ -16,7 +16,7 @@ class ActionController extends Controller
     private function cleanInput(array $data): array
     {
         // 1. إزالة الحقول المؤقتة من الـ Frontend
-        $clean = array_diff_key($data, array_flip(['_isNew', '_rowId', '_ID']));
+        $clean = array_diff_key($data, array_flip(['_isNew', 'ID1']));
         
         // 2. توحيد الأسماء: ID → order_id ، Year → year
         if (isset($clean['ID']) && !isset($clean['order_id'])) {
@@ -47,7 +47,7 @@ class ActionController extends Controller
                 ->where($yearCol, $year)
                 ->when($orderId, fn($q) => $q->where($orderCol, $orderId));
                 
-            return response()->json($query->orderByDesc('_ID')->orderByDesc('ID')->limit(200)->get());
+            return response()->json($query->orderByDesc('ID1')->orderByDesc('ID')->limit(200)->get());
             
         } catch (\Exception $e) {
             Log::error('Actions index error', [
@@ -69,7 +69,7 @@ class ActionController extends Controller
             }
             
             $id = DB::table('actions')->insertGetId($data);
-            return response()->json(['_ID' => $id, 'ID' => $id], 201);
+            return response()->json(['ID1' => $id, 'ID' => $id], 201);
             
         } catch (\Exception $e) {
             Log::error('Actions store error', [
@@ -83,7 +83,7 @@ class ActionController extends Controller
     public function show(string $id): JsonResponse
     {
         try {
-            $record = DB::table('actions')->where('_ID', $id)->orWhere('ID', $id)->first();
+            $record = DB::table('actions')->where('ID1', $id)->orWhere('ID', $id)->first();
             return response()->json($record ?: ['error' => 'Not found'], $record ? 200 : 404);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -97,7 +97,7 @@ class ActionController extends Controller
             unset($data['order_id'], $data['year']); // لا نحدّث مفاتيح الربط
             
             $affected = DB::table('actions')
-                ->where('_ID', $id)->orWhere('ID', $id)
+                ->where('ID1', $id)->orWhere('ID', $id)
                 ->update($data);
                 
             return response()->json(['message' => $affected ? 'Updated' : 'Not found'], $affected ? 200 : 404);
@@ -110,7 +110,7 @@ class ActionController extends Controller
     {
         try {
             $affected = DB::table('actions')
-                ->where('_ID', $id)->orWhere('ID', $id)
+                ->where('ID1', $id)->orWhere('ID', $id)
                 ->delete();
                 
             return response()->json(['message' => $affected ? 'Deleted' : 'Not found'], $affected ? 200 : 404);
