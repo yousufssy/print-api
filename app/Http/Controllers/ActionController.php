@@ -3,45 +3,43 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\{Request, JsonResponse};
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 
 class ActionController extends Controller
 {
     /**
-     * ✅ قائمة الحقول المسموح بإدخالها/تحديثها
+     * ✅ الحقول المسموح بها فقط (للحماية من الحقول الزائدة)
      */
-    private const FILLABLE = [
-        'order_id', 'year',           // مفاتيح الربط
-        'Action', 'Color',            // بيانات العملية
-        'Qunt_Ac', 'On', 'Machin',
-        'Hours', 'Kelo', 'Actual',
-        'Tarkeb', 'Wash', 'Electricity',
-        'Taghez', 'StopVar', 'Date',
+    private const ALLOWED_FIELDS = [
+        'order_id', 'year',
+        'Action', 'Color', 'Qunt_Ac', 'On', 'Machin',
+        'Hours', 'Kelo', 'Actual', 'Tarkeb', 'Wash',
+        'Electricity', 'Taghez', 'StopVar', 'Date',
         'NotesA', 'Tabrer'
     ];
 
     /**
-     ✅ تصفية البيانات: إزالة الحقول المؤقتة وتوحيد أسماء الأعمدة
+     * ✅ تنظيف البيانات: إزالة الحقول المؤقتة وتوحيد الأسماء
      */
-    private function sanitizeInput(array $data): array
+    private function cleanInput(array $data): array
     {
         // 1. إزالة الحقول المؤقتة من الـ Frontend
-        $filtered = array_diff_key($data, array_flip(['_isNew', '_rowId', '_ID']));
+        $clean = array_diff_key($data, array_flip(['_isNew', '_rowId', '_ID']));
         
-        // 2. توحيد أسماء الحقول: ID (frontend) → order_id (database)
-        if (isset($filtered['ID']) && !isset($filtered['order_id'])) {
-            $filtered['order_id'] = $filtered['ID'];
-            unset($filtered['ID']);
+        // 2. توحيد: ID (frontend) → order_id (database)
+        if (isset($clean['ID']) && !isset($clean['order_id'])) {
+            $clean['order_id'] = $clean['ID'];
+            unset($clean['ID']);
         }
         
-        // 3. توحيد سنة: Year → year
-        if (isset($filtered['Year']) && !isset($filtered['year'])) {
-            $filtered['year'] = $filtered['Year'];
-            unset($filtered['Year']);
+        // 3. توحيد: Year → year
+        if (isset($clean['Year']) && !isset($clean['year'])) {
+            $clean['year'] = $clean['Year'];
+            unset($clean['Year']);
         }
         
         // 4. الإبقاء على الحقول المسموحة فقط
-        return array_intersect_key($filtered, array_flip(self::FILLABLE));
+        return array_intersect_key($clean, array_flip(self::ALLOWED_FIELDS));
     }
 
     public function index(Request $request): JsonResponse
@@ -50,60 +48,66 @@ class ActionController extends Controller
             $year = $request->get('year', date('Y'));
             $orderId = $request->get('order_id');
             
-            // ✅ استخدام lowercase 'year' و 'order_id' لتطابق الداتابيز
-            $q = DB::table('actions')
-                ->where('year', $year)
-                ->when($orderId, fn($query) => $query->where('order_id', $orderId));
+            // ✅ lowercase 'year' و 'order_id' لتطابق الداتابيز
+            $query = DB::table('actions')
+                ->where('year', $year);
                 
-            return response()->json($q->orderByDesc('_ID')->limit(100)->get());
+            if ($orderId) {
+                $query->where('order_id', $orderId);
+            }
+            
+            return response()->json(
+                $query->orderByDesc('_ID')->limit(200)->get()
+            );
             
         } catch (\Exception $e) {
-            // 📝 تسجيل الخطأ للمساعدة في التشخيص
-            \Log::error('Actions index failed', [
-                'error' => $e->getMessage(),
-                'params' => $request->only(['order_id', 'year'])
+            Log::error('Actions index error', [
+                'message' => $e->getMessage(),
+                'params' => $request->only(['order_id', 'year']),
+                'trace' => $e->getTraceAsString()
             ]);
-            return response()->json(['message' => 'Server error'], 500);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     }
 
     public function store(Request $request): JsonResponse
     {
         try {
-            $data = $this->sanitizeInput($request->all());
+            $data = $this->cleanInput($request->all());
             
-            // ✅ تحقق إلزامي من الحقول الأساسية
+            // تحقق إلزامي
             if (empty($data['order_id']) || empty($data['year'])) {
-                throw ValidationException::withMessages([
-                    'order_id' => ['رقم الطلب مطلوب'],
-                    'year' => ['سنة العمل مطلوبة']
-                ]);
+                return response()->json([
+                    'message' => 'Missing required fields',
+                    'required' => ['order_id', 'year']
+                ], 422);
             }
             
             $id = DB::table('actions')->insertGetId($data);
-            return response()->json(['_ID' => $id], 201); // ✅ إرجاع _ID ليتطابق مع الـ Frontend
             
-        } catch (ValidationException $e) {
-            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+            // ✅ إرجاع _ID ليتطابق مع توقعات الـ Frontend
+            return response()->json(['_ID' => $id, 'ID' => $id], 201);
+            
         } catch (\Exception $e) {
-            \Log::error('Actions store failed', [
-                'error' => $e->getMessage(),
-                'input' => $request->all()
+            Log::error('Actions store error', [
+                'message' => $e->getMessage(),
+                'input' => $request->all(),
+                'cleaned' => $this->cleanInput($request->all())
             ]);
-            return response()->json(['message' => 'Server error'], 500);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     }
 
     public function show(string $id): JsonResponse
     {
         try {
-            $action = DB::table('actions')->where('_ID', $id)->first(); // ✅ استخدام _ID كمفتاح أساسي
-            if (!$action) {
+            $record = DB::table('actions')->where('_ID', $id)->first();
+            if (!$record) {
                 return response()->json(['message' => 'Not found'], 404);
             }
-            return response()->json($action);
+            return response()->json($record);
         } catch (\Exception $e) {
-            \Log::error('Actions show failed', ['id' => $id, 'error' => $e->getMessage()]);
+            Log::error('Actions show error', ['id' => $id, 'message' => $e->getMessage()]);
             return response()->json(['message' => 'Server error'], 500);
         }
     }
@@ -111,18 +115,21 @@ class ActionController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         try {
-            $data = $this->sanitizeInput($request->all());
-            // ✅ إزالة مفاتيح الربط من التحديث لتجنب الأخطاء
+            $data = $this->cleanInput($request->all());
+            
+            // إزالة مفاتيح الربط من التحديث
             unset($data['order_id'], $data['year']);
             
             $affected = DB::table('actions')->where('_ID', $id)->update($data);
+            
             if ($affected === 0) {
                 return response()->json(['message' => 'Not found or no changes'], 404);
             }
-            return response()->json(['message' => 'Updated.']);
+            return response()->json(['message' => 'Updated']);
+            
         } catch (\Exception $e) {
-            \Log::error('Actions update failed', ['id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['message' => 'Server error'], 500);
+            Log::error('Actions update error', ['id' => $id, 'message' => $e->getMessage()]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     }
 
@@ -130,12 +137,14 @@ class ActionController extends Controller
     {
         try {
             $affected = DB::table('actions')->where('_ID', $id)->delete();
+            
             if ($affected === 0) {
                 return response()->json(['message' => 'Not found'], 404);
             }
-            return response()->json(['message' => 'Deleted.']);
+            return response()->json(['message' => 'Deleted']);
+            
         } catch (\Exception $e) {
-            \Log::error('Actions destroy failed', ['id' => $id, 'error' => $e->getMessage()]);
+            Log::error('Actions destroy error', ['id' => $id, 'message' => $e->getMessage()]);
             return response()->json(['message' => 'Server error'], 500);
         }
     }
