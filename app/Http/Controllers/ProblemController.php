@@ -20,7 +20,8 @@ class ProblemController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $p = Problem::create($request->all());
+        $data = $request->except(['_isNew', '_rowId', '_ID']);
+        $p = Problem::create($data);
         return response()->json($p, 201);
     }
 
@@ -32,7 +33,8 @@ class ProblemController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $p = Problem::findOrFail($id);
-        $p->update($request->all());
+        $data = $request->except(['_isNew', '_rowId', '_ID', 'ID', 'Year']);
+        $p->update($data);
         return response()->json($p);
     }
 
