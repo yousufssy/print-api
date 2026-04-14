@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Action extends Model
 {
     protected $table      = 'actions';
-    protected $primaryKey = '_ID';
+    protected $primaryKey = 'ID1';
     public    $timestamps = false;
 
     protected $fillable = [
