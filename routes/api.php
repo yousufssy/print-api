@@ -21,6 +21,8 @@ Route::get('/dashboard', [DashboardController::class, 'index']);
 
 Route::get('/orders', [OrderController::class, 'index']);
 Route::post('/orders', [OrderController::class, 'store']);
+Route::post('/orders/search', [OrderController::class, 'advancedSearch']);
+Route::post('/orders/search/export', [OrderController::class, 'exportSearch']);
 Route::get('/orders/{id}/{year}', [OrderController::class, 'show']);
 Route::put('/orders/{id}/{year}', [OrderController::class, 'update']);
 Route::delete('/orders/{id}/{year}', [OrderController::class, 'destroy']);
