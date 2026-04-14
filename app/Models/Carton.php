@@ -1,14 +1,15 @@
 <?php
-
 namespace App\Models;
-
 use Illuminate\Database\Eloquent\Model;
-
 class Carton extends Model
 {
     protected $table      = 'Carton';
     protected $primaryKey = 'ID1';
     public    $timestamps = false;
+    
+    // ✅ أضف هذين السطرين
+    public $incrementing = false;   // إذا ID1 مش auto increment
+    protected $keyType   = 'int';   // نوع الـ primary key
 
     protected $fillable = [
         'ID1', 'ID',
