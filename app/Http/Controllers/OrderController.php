@@ -34,11 +34,15 @@ class OrderController extends Controller
             $total  = (clone $query)->count();
             $orders = $query->skip(($page - 1) * $limit)->take($limit)->get();
 
+            $lastPage = (int) ceil($total / max($limit, 1));
+
             return response()->json([
                 'data'       => $orders,
                 'total'      => $total,
                 'page'       => $page,
-                'last_page'  => ceil($total / $limit),
+                'limit'      => $limit,
+                'last_page'  => $lastPage,
+                'totalPages' => $lastPage, // keep frontend compatibility
             ]);
         } catch (\Exception $e) {
             Log::error("خطأ في البحث المتقدم: " . $e->getMessage());
@@ -53,48 +57,126 @@ class OrderController extends Controller
 {
     $query = Order::query();
 
-    // بحث برقم الطلب (مطابقة تامة)
-    if (!empty($filters['ID'])) {
-        $query->where('ID', $filters['ID']);
+    // Support both legacy API names and new frontend names.
+    $orderId     = $filters['ID'] ?? ($filters['orderId'] ?? null);
+    $serial      = $filters['Ser'] ?? ($filters['serialNumber'] ?? null);
+    $customer    = $filters['Customer'] ?? ($filters['customer'] ?? null);
+    $reference   = $filters['marji3'] ?? ($filters['reference'] ?? null);
+    $year        = $filters['Year'] ?? ($filters['year'] ?? null);
+    $pattern     = $filters['Pattern'] ?? ($filters['pattern'] ?? null);
+    $pattern2    = $filters['Pattern2'] ?? ($filters['pattern2'] ?? null);
+    $unitType    = $filters['unit'] ?? ($filters['unitType'] ?? null);
+    $code        = $filters['Code'] ?? ($filters['code'] ?? null);
+
+    $dateFrom    = $filters['date_from'] ?? ($filters['dateComeFrom'] ?? null);
+    $dateTo      = $filters['date_to'] ?? ($filters['dateComeTo'] ?? null);
+    $deliveryFrom = $filters['deliveryDateFrom'] ?? null;
+    $deliveryTo   = $filters['deliveryDateTo'] ?? null;
+
+    $demandMin   = $filters['demandMin'] ?? null;
+    $demandMax   = $filters['demandMax'] ?? null;
+    $priceMin    = $filters['priceMin'] ?? null;
+    $priceMax    = $filters['priceMax'] ?? null;
+
+    $printed     = $filters['Printed'] ?? ($filters['isPrinted'] ?? null);
+    $billed      = $filters['Billed'] ?? ($filters['isBilled'] ?? null);
+    $delivered   = $filters['Reseved'] ?? ($filters['isDelivered'] ?? null);
+    $queryText   = $filters['query'] ?? null;
+
+    if ($orderId !== null && $orderId !== '' && is_numeric($orderId)) {
+        $query->where('ID', (int) $orderId);
     }
 
-    // بحث باسم العميل (بحث جزئي)
-    if (!empty($filters['Customer'])) {
-        $query->where('Customer', 'LIKE', '%' . $filters['Customer'] . '%');
+    if ($serial !== null && $serial !== '' && is_numeric($serial)) {
+        $query->where('Ser', (int) $serial);
     }
 
-     // فلترة حسب البيان / الطلب (بحث جزئي)
-        if (!empty($filters['Demand'])) {
-            $query->where('Demand', 'LIKE', '%' . $filters['Demand'] . '%');
-        }
-
-        // فلترة حسب السنة (تطابق تام)
-        if (!empty($filters['Year'])) {
-            $query->where('Year', $filters['Year']);
-        }
-
-      
-        // فلترة حسب حالة الطباعة (Boolean)
-        if (isset($filters['Printed']) && $filters['Printed'] !== '') {
-            $query->where('Printed', $filters['Printed']);
-        }
-
-        // فلترة حسب حالة الفوترة (Boolean)
-        if (isset($filters['Billed']) && $filters['Billed'] !== '') {
-            $query->where('Billed', $filters['Billed']);
-        }
-
-        // فلترة حسب التاريخ (نطاق زمني)
-        if (!empty($filters['date_from'])) {
-            $query->where('date_come', '>=', $filters['date_from']);
-        }
-        if (!empty($filters['date_to'])) {
-            $query->where('date_come', '<=', $filters['date_to']);
-        }
-
-        return $query;
+    if (!empty($customer)) {
+        $query->where('Customer', 'LIKE', '%' . $customer . '%');
     }
 
+    if (!empty($reference)) {
+        $query->where('marji3', 'LIKE', '%' . $reference . '%');
+    }
+
+    if (!empty($pattern)) {
+        $query->where('Pattern', 'LIKE', '%' . $pattern . '%');
+    }
+
+    if (!empty($pattern2)) {
+        $query->where('Pattern2', 'LIKE', '%' . $pattern2 . '%');
+    }
+
+    if (!empty($unitType)) {
+        $query->where('unit', $unitType);
+    }
+
+    if (!empty($code)) {
+        $query->where('Code', 'LIKE', '%' . $code . '%');
+    }
+
+    if (!empty($year)) {
+        $query->where('Year', $year);
+    }
+
+    if ($printed !== null && $printed !== '') {
+        $query->where('Printed', filter_var($printed, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
+    }
+
+    if ($billed !== null && $billed !== '') {
+        $query->where('Billed', filter_var($billed, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
+    }
+
+    if ($delivered !== null && $delivered !== '') {
+        $query->where('Reseved', filter_var($delivered, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
+    }
+
+    if (!empty($dateFrom)) {
+        $query->whereDate('date_come', '>=', $dateFrom);
+    }
+    if (!empty($dateTo)) {
+        $query->whereDate('date_come', '<=', $dateTo);
+    }
+
+    if (!empty($deliveryFrom)) {
+        $query->whereDate('Apoent_Delv_date', '>=', $deliveryFrom);
+    }
+    if (!empty($deliveryTo)) {
+        $query->whereDate('Apoent_Delv_date', '<=', $deliveryTo);
+    }
+
+    if ($demandMin !== null && $demandMin !== '' && is_numeric($demandMin)) {
+        $query->where('Demand', '>=', $demandMin);
+    }
+    if ($demandMax !== null && $demandMax !== '' && is_numeric($demandMax)) {
+        $query->where('Demand', '<=', $demandMax);
+    }
+
+    if ($priceMin !== null && $priceMin !== '' && is_numeric($priceMin)) {
+        $query->where('Price', '>=', $priceMin);
+    }
+    if ($priceMax !== null && $priceMax !== '' && is_numeric($priceMax)) {
+        $query->where('Price', '<=', $priceMax);
+    }
+
+    // Generic full-text-ish query across key fields.
+    if (!empty($queryText)) {
+        $query->where(function ($q) use ($queryText) {
+            $q->where('Customer', 'LIKE', '%' . $queryText . '%')
+              ->orWhere('Pattern', 'LIKE', '%' . $queryText . '%')
+              ->orWhere('Pattern2', 'LIKE', '%' . $queryText . '%')
+              ->orWhere('marji3', 'LIKE', '%' . $queryText . '%')
+              ->orWhereRaw('CAST([Demand] AS NVARCHAR(50)) LIKE ?', ['%' . $queryText . '%']);
+
+            if (is_numeric($queryText)) {
+                $q->orWhere('ID', (int) $queryText)
+                  ->orWhere('Ser', (int) $queryText);
+            }
+        });
+    }
+
+    return $query;
+    }
     /**
      * عرض قائمة الطلبات (الرئيسية)
      */
