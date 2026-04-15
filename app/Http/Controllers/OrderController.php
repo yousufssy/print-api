@@ -49,16 +49,21 @@ class OrderController extends Controller
     /**
      * بناء الاستعلام ديناميكياً بناءً على الحقول المعبأة فقط
      */
-    private function buildSearchQuery(array $filters)
-    {
-        $query = Order::query();
+   protected function buildSearchQuery(array $filters)
+{
+    $query = Order::query();
 
-        // فلترة حسب اسم الزبون (بحث جزئي - LIKE)
-        if (!empty($filters['Customer'])) {
-            $query->where('Customer', 'LIKE', '%' . $filters['Customer'] . '%');
-        }
+    // بحث برقم الطلب (مطابقة تامة)
+    if (!empty($filters['ID'])) {
+        $query->where('ID', $filters['ID']);
+    }
 
-        // فلترة حسب البيان / الطلب (بحث جزئي)
+    // بحث باسم العميل (بحث جزئي)
+    if (!empty($filters['Customer'])) {
+        $query->where('Customer', 'LIKE', '%' . $filters['Customer'] . '%');
+    }
+
+     // فلترة حسب البيان / الطلب (بحث جزئي)
         if (!empty($filters['Demand'])) {
             $query->where('Demand', 'LIKE', '%' . $filters['Demand'] . '%');
         }
@@ -68,11 +73,7 @@ class OrderController extends Controller
             $query->where('Year', $filters['Year']);
         }
 
-        // فلترة حسب رقم الطلب (تطابق تام)
-        if (!empty($filters['ID'])) {
-            $query->where('ID', $filters['ID']);
-        }
-
+      
         // فلترة حسب حالة الطباعة (Boolean)
         if (isset($filters['Printed']) && $filters['Printed'] !== '') {
             $query->where('Printed', $filters['Printed']);
