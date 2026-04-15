@@ -33,16 +33,12 @@ class OrderController extends Controller
 
             $total  = (clone $query)->count();
             $orders = $query->skip(($page - 1) * $limit)->take($limit)->get();
-            
-            // ✅ حساب totalPages للتوافق مع Frontend
-            $totalPages = ceil($total / $limit);
 
             return response()->json([
                 'data'       => $orders,
                 'total'      => $total,
                 'page'       => $page,
-                'last_page'  => $totalPages,
-                'totalPages' => $totalPages, // ✅ إضافة للتوافق
+                'last_page'  => ceil($total / $limit),
             ]);
         } catch (\Exception $e) {
             Log::error("خطأ في البحث المتقدم: " . $e->getMessage());
@@ -72,11 +68,9 @@ class OrderController extends Controller
             $query->where('Demand', 'LIKE', '%' . $filters['Demand'] . '%');
         }
 
-        // ✅ فلترة حسب السنة - قبول كلاً من Year و year
+        // فلترة حسب السنة (تطابق تام)
         if (!empty($filters['Year'])) {
             $query->where('Year', $filters['Year']);
-        } elseif (!empty($filters['year'])) {
-            $query->where('Year', $filters['year']);
         }
 
       
@@ -198,31 +192,5 @@ class OrderController extends Controller
              ->delete();
 
         return response()->json(['message' => 'تم حذف الطلب بنجاح']);
-    }
-    
-    /**
-     * 📤 تصدير نتائج البحث
-     */
-    public function exportSearch(Request $request): JsonResponse
-    {
-        try {
-            $format = $request->get('format', 'csv');
-            $query = $this->buildSearchQuery($request->all());
-            
-            // الحصول على جميع النتائج بدون ترقيم
-            $orders = $query->get();
-            
-            // يمكنك هنا إضافة منطق التصدير الفعلي
-            // مثال: استخدام مكتبة Laravel Excel أو PhpSpreadsheet
-            
-            return response()->json([
-                'message' => 'جاري تصدير النتائج',
-                'count' => $orders->count(),
-                'format' => $format
-            ]);
-        } catch (\Exception $e) {
-            Log::error("خطأ في التصدير: " . $e->getMessage());
-            return response()->json(['error' => 'حدث خطأ أثناء التصدير'], 500);
-        }
     }
 }
