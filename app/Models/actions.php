@@ -11,7 +11,7 @@ class Action extends Model
     public    $timestamps = false;
 
     protected $fillable = [
-        'ID1', 'ID', 'Year',
+        'ID1', 'ID', 'year',
         'Action', 'Color', 'Qunt_Ac', 'On',
         'Machin', 'Hours', 'Date', 'NotesA',
         'Kelo', 'Actual', 'Tarkeb', 'Wash',
