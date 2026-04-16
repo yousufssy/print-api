@@ -15,16 +15,13 @@ class ActionController extends Controller
 
     private function cleanInput(array $data): array
     {
-        // 1. إزالة الحقول المؤقتة من الـ Frontend
-        $clean = array_diff_key($data, array_flip(['_isNew', 'ID1']));
+        $clean = array_diff_key($data, array_flip(['_isNew', '_rowId', 'ID1']));
 
-        // 2. توحيد Year → year
         if (isset($clean['Year']) && !isset($clean['year'])) {
             $clean['year'] = $clean['Year'];
             unset($clean['Year']);
         }
 
-        // 3. الإبقاء على الحقول المسموحة فقط
         return array_intersect_key($clean, array_flip(self::ALLOWED_FIELDS));
     }
 
@@ -59,7 +56,6 @@ class ActionController extends Controller
                 return response()->json(['error' => 'Missing ID or year'], 422);
             }
 
-            // توليد ID1 يدوياً إذا لم يكن AUTO_INCREMENT
             $maxId       = DB::table('actions')->max('ID1') ?? 0;
             $data['ID1'] = $maxId + 1;
 
@@ -94,32 +90,25 @@ class ActionController extends Controller
     }
 
     // PUT /api/actions/{id}
-        public function update(Request $request, string $id): JsonResponse
+    public function update(Request $request, string $id): JsonResponse
     {
         try {
             $data = $this->cleanInput($request->all());
             unset($data['ID'], $data['year']);
-    
-            // 🔍 سجّل ماذا يصل
-            Log::info('Update attempt', [
-                'id'   => $id,
-                'data' => $data,
-                'exists' => DB::table('actions')->where('ID1', $id)->exists()
-            ]);
-    
+
             if (empty($data)) {
                 return response()->json(['error' => 'No valid fields to update'], 422);
             }
-    
+
             $affected = DB::table('actions')
                 ->where('ID1', $id)
                 ->update($data);
-    
+
             return response()->json(
-                ['message' => $affected ? 'Updated' : 'Not found', 'debug' => ['id' => $id, 'data' => $data, 'affected' => $affected]],
+                ['message' => $affected ? 'Updated' : 'Not found'],
                 $affected ? 200 : 404
             );
-    
+
         } catch (\Exception $e) {
             Log::error('Actions update error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
