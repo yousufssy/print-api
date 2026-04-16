@@ -18,7 +18,7 @@ class ActionController extends Controller
         // 1. إزالة الحقول المؤقتة من الـ Frontend
         $clean = array_diff_key($data, array_flip(['_isNew', 'ID1']));
 
-        // 2. توحيد Year → year فقط
+        // 2. توحيد Year → year
         if (isset($clean['Year']) && !isset($clean['year'])) {
             $clean['year'] = $clean['Year'];
             unset($clean['Year']);
@@ -28,6 +28,7 @@ class ActionController extends Controller
         return array_intersect_key($clean, array_flip(self::ALLOWED_FIELDS));
     }
 
+    // GET /api/actions
     public function index(Request $request): JsonResponse
     {
         try {
@@ -39,19 +40,16 @@ class ActionController extends Controller
                 ->when($orderId, fn($q) => $q->where('ID', $orderId));
 
             return response()->json(
-                $query->orderByDesc('ID1')->orderByDesc('ID')->limit(200)->get()
+                $query->orderByDesc('ID1')->limit(200)->get()
             );
 
         } catch (\Exception $e) {
-            Log::error('Actions index error', [
-                'message' => $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine()
-            ]);
+            Log::error('Actions index error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
+    // POST /api/actions
     public function store(Request $request): JsonResponse
     {
         try {
@@ -61,7 +59,12 @@ class ActionController extends Controller
                 return response()->json(['error' => 'Missing ID or year'], 422);
             }
 
-            $id = DB::table('actions')->insertGetId($data);
+            // توليد ID1 يدوياً إذا لم يكن AUTO_INCREMENT
+            $maxId       = DB::table('actions')->max('ID1') ?? 0;
+            $data['ID1'] = $maxId + 1;
+
+            $id = DB::table('actions')->insertGetId($data, 'ID1');
+
             return response()->json(['ID1' => $id, 'ID' => $data['ID']], 201);
 
         } catch (\Exception $e) {
@@ -73,22 +76,35 @@ class ActionController extends Controller
         }
     }
 
+    // GET /api/actions/{id}
     public function show(string $id): JsonResponse
     {
         try {
             $record = DB::table('actions')->where('ID1', $id)->first();
-            return response()->json($record ?: ['error' => 'Not found'], $record ? 200 : 404);
+
+            return response()->json(
+                $record ?: ['error' => 'Not found'],
+                $record ? 200 : 404
+            );
 
         } catch (\Exception $e) {
+            Log::error('Actions show error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
+    // PUT /api/actions/{id}
     public function update(Request $request, string $id): JsonResponse
     {
         try {
             $data = $this->cleanInput($request->all());
-            unset($data['ID'], $data['year']); // لا نحدّث مفاتيح الربط
+
+            // لا نسمح بتغيير المفاتيح الأساسية
+            unset($data['ID'], $data['year']);
+
+            if (empty($data)) {
+                return response()->json(['error' => 'No valid fields to update'], 422);
+            }
 
             $affected = DB::table('actions')
                 ->where('ID1', $id)
@@ -100,10 +116,12 @@ class ActionController extends Controller
             );
 
         } catch (\Exception $e) {
+            Log::error('Actions update error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
+    // DELETE /api/actions/{id}
     public function destroy(string $id): JsonResponse
     {
         try {
@@ -117,6 +135,7 @@ class ActionController extends Controller
             );
 
         } catch (\Exception $e) {
+            Log::error('Actions destroy error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
