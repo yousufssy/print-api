@@ -10,9 +10,6 @@ class Action extends Model
     protected $primaryKey = 'ID1';
     public    $timestamps = false;
 
-    public $incrementing = false;   // إذا ID1 مش auto increment
-    protected $keyType   = 'int';   // نوع الـ primary key
-    
     protected $fillable = [
         'ID1', 'ID', 'year',
         'Action', 'Color', 'Qunt_Ac', 'On',
