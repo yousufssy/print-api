@@ -33,8 +33,12 @@ class ActionController extends Controller
             $orderId = $request->get('ID');
 
             $query = DB::table('actions')
-                ->where('year', $year)
-                ->when($orderId, fn($q) => $q->where('ID', $orderId));
+                    ->where('year', $year);
+                
+                // ✅ التعديل: تحويل القيمة إلى رقم صحيح (Integer) قبل الاستخدام
+                if (!empty($orderId) && is_numeric($orderId)) {
+                    $query->where('ID', (int) $orderId); 
+                }
 
             return response()->json(
                 $query->orderByDesc('ID1')->limit(200)->get()
