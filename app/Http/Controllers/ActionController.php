@@ -94,27 +94,32 @@ class ActionController extends Controller
     }
 
     // PUT /api/actions/{id}
-    public function update(Request $request, string $id): JsonResponse
+        public function update(Request $request, string $id): JsonResponse
     {
         try {
             $data = $this->cleanInput($request->all());
-
-            // لا نسمح بتغيير المفاتيح الأساسية
             unset($data['ID'], $data['year']);
-
+    
+            // 🔍 سجّل ماذا يصل
+            Log::info('Update attempt', [
+                'id'   => $id,
+                'data' => $data,
+                'exists' => DB::table('actions')->where('ID1', $id)->exists()
+            ]);
+    
             if (empty($data)) {
                 return response()->json(['error' => 'No valid fields to update'], 422);
             }
-
+    
             $affected = DB::table('actions')
                 ->where('ID1', $id)
                 ->update($data);
-
+    
             return response()->json(
-                ['message' => $affected ? 'Updated' : 'Not found'],
+                ['message' => $affected ? 'Updated' : 'Not found', 'debug' => ['id' => $id, 'data' => $data, 'affected' => $affected]],
                 $affected ? 200 : 404
             );
-
+    
         } catch (\Exception $e) {
             Log::error('Actions update error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
