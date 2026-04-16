@@ -51,20 +51,18 @@ class CartonController extends Controller
     {
         try {
             $data = $this->cleanInput($request->all());
-    
+
             if (empty($data['ID']) || empty($data['year'])) {
                 return response()->json(['error' => 'Missing ID or year'], 422);
             }
-    
-            // ✅ تجاهل السجلات ذات ID1 فارغ
-            $maxId       = DB::table('Carton')->whereNotNull('ID1')->max('ID1') ?? 0;
+
+            $maxId       = DB::table('Carton')->max('ID1') ?? 0;
             $data['ID1'] = $maxId + 1;
-    
-            // ✅ insert عادي بدل insertGetId لأن ID1 مش auto-increment
-            DB::table('Carton')->insert($data);
-    
-            return response()->json(['ID1' => $data['ID1'], 'ID' => $data['ID']], 201);
-    
+
+            $id = DB::table('Carton')->insertGetId($data, 'ID1');
+
+            return response()->json(['ID1' => $id, 'ID' => $data['ID']], 201);
+
         } catch (\Exception $e) {
             Log::error('Cartons store error', [
                 'message' => $e->getMessage(),
