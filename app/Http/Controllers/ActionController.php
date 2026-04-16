@@ -33,8 +33,12 @@ class ActionController extends Controller
             $orderId = $request->get('ID');
 
             $query = DB::table('actions')
-                ->where('year', $year)
-                ->when($orderId, fn($q) => $q->where('ID', $orderId));
+                ->where('year', $year);
+
+            // ✅ التعديل: تحويل ID لرقم لضمان مطابقة النوع في قاعدة البيانات
+            if (!empty($orderId) && is_numeric($orderId)) {
+                $query->where('ID', (int) $orderId);
+            }
 
             return response()->json(
                 $query->orderByDesc('ID1')->limit(200)->get()
@@ -76,7 +80,8 @@ class ActionController extends Controller
     public function show(string $id): JsonResponse
     {
         try {
-            $record = DB::table('actions')->where('ID1', $id)->first();
+            // ✅ التعديل: تحويل $id لرقم صحيح لمطابقة عمود ID1
+            $record = DB::table('actions')->where('ID1', (int) $id)->first();
 
             return response()->json(
                 $record ?: ['error' => 'Not found'],
@@ -100,8 +105,9 @@ class ActionController extends Controller
                 return response()->json(['error' => 'No valid fields to update'], 422);
             }
 
+            // ✅ التعديل الجوهري: تحويل $id لرقم صحيح (الحل لمشكلة 404)
             $affected = DB::table('actions')
-                ->where('ID1', $id)
+                ->where('ID1', (int) $id)
                 ->update($data);
 
             return response()->json(
@@ -110,7 +116,11 @@ class ActionController extends Controller
             );
 
         } catch (\Exception $e) {
-            Log::error('Actions update error', ['message' => $e->getMessage()]);
+            Log::error('Actions update error', [
+                'message' => $e->getMessage(),
+                'id' => $id,
+                'input' => $request->all()
+            ]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -119,8 +129,9 @@ class ActionController extends Controller
     public function destroy(string $id): JsonResponse
     {
         try {
+            // ✅ التعديل: تحويل $id لرقم صحيح لضمان الحذف الصحيح
             $affected = DB::table('actions')
-                ->where('ID1', $id)
+                ->where('ID1', (int) $id)
                 ->delete();
 
             return response()->json(
