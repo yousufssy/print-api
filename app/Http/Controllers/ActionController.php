@@ -15,17 +15,19 @@ class ActionController extends Controller
 
     private function cleanInput(array $data): array
     {
-        $clean = array_diff_key($data, array_flip(['_isNew', '_rowId', 'ID1']));
+        // 1. إزالة الحقول المؤقتة من الـ Frontend
+        $clean = array_diff_key($data, array_flip(['_isNew', 'ID1']));
 
+        // 2. توحيد Year → year فقط
         if (isset($clean['Year']) && !isset($clean['year'])) {
             $clean['year'] = $clean['Year'];
             unset($clean['Year']);
         }
 
+        // 3. الإبقاء على الحقول المسموحة فقط
         return array_intersect_key($clean, array_flip(self::ALLOWED_FIELDS));
     }
 
-    // GET /api/actions
     public function index(Request $request): JsonResponse
     {
         try {
@@ -33,24 +35,23 @@ class ActionController extends Controller
             $orderId = $request->get('ID');
 
             $query = DB::table('actions')
-                ->where('year', $year);
-
-            // ✅ التعديل: تحويل ID لرقم لضمان مطابقة النوع في قاعدة البيانات
-            if (!empty($orderId) && is_numeric($orderId)) {
-                $query->where('ID', (int) $orderId);
-            }
+                ->where('year', $year)
+                ->when($orderId, fn($q) => $q->where('ID', $orderId));
 
             return response()->json(
-                $query->orderByDesc('ID1')->limit(200)->get()
+                $query->orderByDesc('ID1')->orderByDesc('ID')->limit(200)->get()
             );
 
         } catch (\Exception $e) {
-            Log::error('Actions index error', ['message' => $e->getMessage()]);
+            Log::error('Actions index error', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine()
+            ]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
-    // POST /api/actions
     public function store(Request $request): JsonResponse
     {
         try {
@@ -60,11 +61,7 @@ class ActionController extends Controller
                 return response()->json(['error' => 'Missing ID or year'], 422);
             }
 
-            $maxId       = DB::table('actions')->max('ID1') ?? 0;
-            $data['ID1'] = $maxId + 1;
-
-            $id = DB::table('actions')->insertGetId($data, 'ID1');
-
+            $id = DB::table('actions')->insertGetId($data);
             return response()->json(['ID1' => $id, 'ID' => $data['ID']], 201);
 
         } catch (\Exception $e) {
@@ -76,38 +73,25 @@ class ActionController extends Controller
         }
     }
 
-    // GET /api/actions/{id}
     public function show(string $id): JsonResponse
     {
         try {
-            // ✅ التعديل: تحويل $id لرقم صحيح لمطابقة عمود ID1
-            $record = DB::table('actions')->where('ID1', (int) $id)->first();
-
-            return response()->json(
-                $record ?: ['error' => 'Not found'],
-                $record ? 200 : 404
-            );
+            $record = DB::table('actions')->where('ID1', $id)->first();
+            return response()->json($record ?: ['error' => 'Not found'], $record ? 200 : 404);
 
         } catch (\Exception $e) {
-            Log::error('Actions show error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
-    // PUT /api/actions/{id}
     public function update(Request $request, string $id): JsonResponse
     {
         try {
             $data = $this->cleanInput($request->all());
-            unset($data['ID'], $data['year']);
+            unset($data['ID'], $data['year']); // لا نحدّث مفاتيح الربط
 
-            if (empty($data)) {
-                return response()->json(['error' => 'No valid fields to update'], 422);
-            }
-
-            // ✅ التعديل الجوهري: تحويل $id لرقم صحيح (الحل لمشكلة 404)
             $affected = DB::table('actions')
-                ->where('ID1', (int) $id)
+                ->where('ID1', $id)
                 ->update($data);
 
             return response()->json(
@@ -116,22 +100,15 @@ class ActionController extends Controller
             );
 
         } catch (\Exception $e) {
-            Log::error('Actions update error', [
-                'message' => $e->getMessage(),
-                'id' => $id,
-                'input' => $request->all()
-            ]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
-    // DELETE /api/actions/{id}
     public function destroy(string $id): JsonResponse
     {
         try {
-            // ✅ التعديل: تحويل $id لرقم صحيح لضمان الحذف الصحيح
             $affected = DB::table('actions')
-                ->where('ID1', (int) $id)
+                ->where('ID1', $id)
                 ->delete();
 
             return response()->json(
@@ -140,7 +117,6 @@ class ActionController extends Controller
             );
 
         } catch (\Exception $e) {
-            Log::error('Actions destroy error', ['message' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
