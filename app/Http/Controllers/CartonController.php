@@ -17,9 +17,9 @@ class CartonController extends Controller
     {
         $clean = array_diff_key($data, array_flip(['_isNew', '_rowId', 'ID1']));
 
-        if (isset($clean['year']) && !isset($clean['year'])) {
-            $clean['year'] = $clean['year'];
-            unset($clean['year']);
+        if (isset($clean['Year']) && !isset($clean['year'])) {
+            $clean['year'] = $clean['Year'];
+            unset($clean['Year']);
         }
 
         return array_intersect_key($clean, array_flip(self::ALLOWED_FIELDS));
