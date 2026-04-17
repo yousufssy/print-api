@@ -62,7 +62,7 @@ class OrderController extends Controller
     $serial      = $filters['Ser'] ?? ($filters['serialNumber'] ?? null);
     $customer    = $filters['Customer'] ?? ($filters['customer'] ?? null);
     $reference   = $filters['marji3'] ?? ($filters['reference'] ?? null);
-    $Year        = $filters['Year'] ?? ($filters['Year'] ?? null);
+    $year        = $filters['Year'] ?? ($filters['year'] ?? null);
     $pattern     = $filters['Pattern'] ?? ($filters['pattern'] ?? null);
     $pattern2    = $filters['Pattern2'] ?? ($filters['pattern2'] ?? null);
     $unitType    = $filters['unit'] ?? ($filters['unitType'] ?? null);
@@ -115,8 +115,8 @@ class OrderController extends Controller
         $query->where('Code', 'LIKE', '%' . $code . '%');
     }
 
-    if (!empty($Year)) {
-        $query->where('Year', $Year);
+    if (!empty($year)) {
+        $query->where('Year', $year);
     }
 
     if ($printed !== null && $printed !== '') {
@@ -182,10 +182,10 @@ class OrderController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $Year = $request->get('Year', date('Y'));
+        $year = $request->get('year', date('Y'));
         $q    = $request->get('q');
 
-        $query = Order::where('Year', $Year);
+        $query = Order::where('Year', $year);
 
         if ($q) {
             $query->where(function ($query) use ($q) {
@@ -226,10 +226,10 @@ class OrderController extends Controller
     /**
      * عرض تفاصيل طلب واحد مع السندات المرتبطة
      */
-    public function show($id, $Year): JsonResponse
+    public function show($id, $year): JsonResponse
     {
         $order = Order::where('ID', $id)
-                      ->where('Year', $Year)
+                      ->where('Year', $year)
                       ->firstOrFail();
         
         $order->load('vouchers');
@@ -241,23 +241,18 @@ class OrderController extends Controller
      * تحديث بيانات الطلب
      */
     public function update(Request $request, $id, $year): JsonResponse
-            {
-                // استخدم where على كلا الحقلين لضمان التحديث في السجل الصحيح فقط
-                $affected = Order::where('ID', $id)
-                                ->where('Year', $year)
-                                ->update($request->all());
-            
-                if ($affected === 0) {
-                    return response()->json(['error' => 'Order not found or no changes made'], 404);
-                }
-            
-                // ثم اجلب السجل المحدث للرد عليه
-                $order = Order::where('ID', $id)
-                              ->where('Year', $year)
-                              ->firstOrFail();
-            
-                return response()->json($order);
-            }
+    {
+        $order = Order::where('ID', $id)
+                      ->where('Year', $year)
+                      ->firstOrFail();
+
+        $data = $request->all();
+
+        $booleanFields = [
+            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+            'rolling', 'rollingBack', 'Reseved'
+        ];
 
         foreach ($booleanFields as $field) {
             if (isset($data[$field])) {
@@ -272,10 +267,10 @@ class OrderController extends Controller
     /**
      * حذف الطلب
      */
-    public function destroy($id, $Year): JsonResponse
+    public function destroy($id, $year): JsonResponse
     {
         Order::where('ID', $id)
-             ->where('Year', $Year)
+             ->where('Year', $year)
              ->delete();
 
         return response()->json(['message' => 'تم حذف الطلب بنجاح']);
