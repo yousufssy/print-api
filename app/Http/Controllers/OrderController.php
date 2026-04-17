@@ -243,7 +243,7 @@ class OrderController extends Controller
     public function update(Request $request, $id, $year): JsonResponse
     {
         $order = Order::where('ID', $id)
-                      ->where('Year', $year)
+                      ->where('year', $year)
                       ->firstOrFail();
 
         $data = $request->all();
