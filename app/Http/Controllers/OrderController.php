@@ -12,36 +12,63 @@ class OrderController extends Controller
 {
     private const PER_PAGE = 50;
 
-    // الحقول المحمية التي لا يجوز تعديلها أبداً
-    private const PROTECTED_FIELDS = [
-        'ID', 'Year', 'id', 'year',
-        'created_at', 'updated_at',
-    ];
-
     /**
-     * ✅ جلب أعمدة الجدول الحقيقية من SQL Server
-     *    ثم تصفية البيانات للإبقاء فقط على ما هو موجود في الجدول
+     * ✅ تنظيف البيانات قبل INSERT أو UPDATE
+     *    - يحذف الحقول المحمية (ID, Year)
+     *    - يحذف أي حقل قيمته array أو object (مثل vouchers:[])
+     *    - يحذف الحقول المعروفة التي لا وجود لها في جدول orders
      */
-    private function filterToTableColumns(array $data, string $table): array
+    private function cleanData(array $data): array
     {
-        // جلب أسماء الأعمدة من SQL Server مباشرةً
-        $columns = DB::select("
-            SELECT COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME = ?
-        ", [$table]);
+        // 1) حقول محمية أو غير موجودة في الجدول
+        $blacklist = [
+            'ID', 'Year', 'id', 'year',
+            'created_at', 'updated_at',
+            'vouchers', 'operations', 'cartons', 'problems',
+            'Varnish',       // الاسم الصحيح في DB هو varnich
+            'Cut_Num',       // قد لا يكون موجوداً
+            'cut1', 'cut2',
+            'bals', 'tabkha',
+            'OldID', 'OldYear',
+            'DubelM_Text',
+            'Label_Price', 'Label_Price1',
+            'Repar_Wages', 'Print_Value',
+            'Other', 'Equation', 'x_Price',
+            'Currency',
+        ];
 
-        $columnNames = array_map(fn($col) => $col->COLUMN_NAME, $columns);
-
-        // إبقاء فقط الحقول الموجودة في الجدول
-        $filtered = array_intersect_key($data, array_flip($columnNames));
-
-        // حذف الحقول المحمية
-        foreach (self::PROTECTED_FIELDS as $field) {
-            unset($filtered[$field]);
+        foreach ($blacklist as $field) {
+            unset($data[$field]);
         }
 
-        return $filtered;
+        // 2) حذف أي حقل قيمته array أو object (علاقات وصلت من الـ frontend)
+        foreach ($data as $key => $value) {
+            if (is_array($value) || is_object($value)) {
+                unset($data[$key]);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * معالجة حقول البوليان
+     */
+    private function processBooleanFields(array $data): array
+    {
+        $booleanFields = [
+            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+            'rolling', 'rollingBack', 'Reseved',
+        ];
+
+        foreach ($booleanFields as $field) {
+            if (isset($data[$field])) {
+                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -61,8 +88,8 @@ class OrderController extends Controller
             $page  = max((int) $request->get('page', 1), 1);
             $limit = min((int) $request->get('limit', self::PER_PAGE), 200);
 
-            $total  = (clone $query)->count();
-            $orders = $query->skip(($page - 1) * $limit)->take($limit)->get();
+            $total    = (clone $query)->count();
+            $orders   = $query->skip(($page - 1) * $limit)->take($limit)->get();
             $lastPage = (int) ceil($total / max($limit, 1));
 
             return response()->json([
@@ -177,7 +204,7 @@ class OrderController extends Controller
                   ->orWhere('Pattern',  'LIKE', '%' . $queryText . '%')
                   ->orWhere('Pattern2', 'LIKE', '%' . $queryText . '%')
                   ->orWhere('marji3',   'LIKE', '%' . $queryText . '%')
-                  ->orWhereRaw('CAST([Demand] AS NVARCHAR(50)) LIKE ?', ['%' . $queryText . '%']);
+                  ->orWhere('Demand',   'LIKE', '%' . $queryText . '%');
 
                 if (is_numeric($queryText)) {
                     $q->orWhere('ID',  (int) $queryText)
@@ -217,14 +244,14 @@ class OrderController extends Controller
     public function store(Request $request): JsonResponse
     {
         try {
-            $data = $this->filterToTableColumns($request->all(), 'orders');
+            $data = $this->cleanData($request->all());
             $data = $this->processBooleanFields($data);
 
             $order = Order::create($data);
             return response()->json($order, 201);
 
         } catch (\Exception $e) {
-            Log::error('❌ store error: ' . $e->getMessage(), ['data' => $request->all()]);
+            Log::error('❌ store error: ' . $e->getMessage());
             return response()->json([
                 'error'   => 'حدث خطأ أثناء إنشاء الطلب',
                 'details' => $e->getMessage(),
@@ -248,6 +275,7 @@ class OrderController extends Controller
 
     /**
      * تحديث بيانات الطلب
+     * ✅ يستخدم DB::table مع WHERE ID و Year معاً لتفادي تعديل سجلات بنفس ID في سنوات مختلفة
      */
     public function update(Request $request, $id, $year): JsonResponse
     {
@@ -260,11 +288,14 @@ class OrderController extends Controller
                 return response()->json(['error' => 'الطلب غير موجود'], 404);
             }
 
-            // ✅ تصفية الحقول بناءً على أعمدة SQL Server الحقيقية
-            $data = $this->filterToTableColumns($request->all(), 'orders');
+            $data = $this->cleanData($request->all());
             $data = $this->processBooleanFields($data);
 
-            // ✅ سجّل الحقول النظيفة في اللوق
+            // تأكد أن البيانات ليست فارغة قبل التحديث
+            if (empty($data)) {
+                return response()->json(['error' => 'لا توجد بيانات للتحديث'], 422);
+            }
+
             Log::info('update clean keys: ' . implode(', ', array_keys($data)));
 
             DB::table('orders')
@@ -279,11 +310,7 @@ class OrderController extends Controller
             return response()->json($updated);
 
         } catch (\Exception $e) {
-            Log::error('❌ update error: ' . $e->getMessage(), [
-                'id'   => $id,
-                'year' => $year,
-            ]);
-            // ✅ إرجاع رسالة الخطأ الحقيقية لمساعدة التشخيص
+            Log::error('❌ update error: ' . $e->getMessage(), ['id' => $id, 'year' => $year]);
             return response()->json([
                 'error'   => 'حدث خطأ أثناء تحديث الطلب',
                 'details' => $e->getMessage(),
@@ -305,25 +332,5 @@ class OrderController extends Controller
         }
 
         return response()->json(['message' => 'تم حذف الطلب بنجاح']);
-    }
-
-    /**
-     * معالجة حقول البوليان
-     */
-    private function processBooleanFields(array $data): array
-    {
-        $booleanFields = [
-            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
-            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
-            'rolling', 'rollingBack', 'Reseved',
-        ];
-
-        foreach ($booleanFields as $field) {
-            if (isset($data[$field])) {
-                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
-            }
-        }
-
-        return $data;
     }
 }
