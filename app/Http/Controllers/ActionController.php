@@ -92,6 +92,7 @@ class ActionController extends Controller
 
             $affected = DB::table('actions')
                 ->where('ID1', $id)
+                ->where('year', $year)
                 ->update($data);
 
             return response()->json(
@@ -109,6 +110,7 @@ class ActionController extends Controller
         try {
             $affected = DB::table('actions')
                 ->where('ID1', $id)
+                ->where('year', $year)
                 ->delete();
 
             return response()->json(
