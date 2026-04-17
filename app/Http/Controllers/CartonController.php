@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 class CartonController extends Controller
 {
     private const ALLOWED_FIELDS = [
-        'ID', 'year', 'Type1', 'Id_carton', 'Source1', 'Supplier1',
+        'ID', 'Year', 'Type1', 'Id_carton', 'Source1', 'Supplier1',
         'Long1', 'Width1', 'Gramage1', 'Sheet_count1',
         'Out_Date', 'Out_ord_num', 'note_crt', 'Price'
     ];
@@ -17,8 +17,8 @@ class CartonController extends Controller
     {
         $clean = array_diff_key($data, array_flip(['_isNew', '_rowId', 'ID1']));
 
-        if (isset($clean['Year']) && !isset($clean['year'])) {
-            $clean['year'] = $clean['Year'];
+        if (isset($clean['Year']) && !isset($clean['Year'])) {
+            $clean['Year'] = $clean['Year'];
             unset($clean['Year']);
         }
 
@@ -29,11 +29,11 @@ class CartonController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $year    = $request->get('year', date('Y'));
+            $Year    = $request->get('Year', date('Y'));
             $orderId = $request->get('ID');
 
             $query = DB::table('Carton')
-                ->where('year', $year)
+                ->where('Year', $Year)
                 ->when($orderId, fn($q) => $q->where('ID', $orderId));
 
             return response()->json(
@@ -52,8 +52,8 @@ class CartonController extends Controller
         try {
             $data = $this->cleanInput($request->all());
 
-            if (empty($data['ID']) || empty($data['year'])) {
-                return response()->json(['error' => 'Missing ID or year'], 422);
+            if (empty($data['ID']) || empty($data['Year'])) {
+                return response()->json(['error' => 'Missing ID or Year'], 422);
             }
 
             $maxId       = DB::table('Carton')->max('ID1') ?? 0;
@@ -94,7 +94,7 @@ class CartonController extends Controller
     {
         try {
             $data = $this->cleanInput($request->all());
-            unset($data['ID'], $data['year']);
+            unset($data['ID'], $data['Year']);
 
             if (empty($data)) {
                 return response()->json(['error' => 'No valid fields to update'], 422);
