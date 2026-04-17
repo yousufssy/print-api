@@ -40,7 +40,7 @@ class UploadController extends Controller
                 'Out_Date' => $row[10],
                 'Out_ord_num' => $row[11],
                 'note_crt' => $row[12],
-                'year' => $row[13],
+                'Year' => $row[13],
                 'Price' => $row[14]
             ]);
 
