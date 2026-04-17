@@ -35,16 +35,14 @@ Route::post('/actions',        [ActionController::class, 'store']);
 Route::get('/actions/{id}',    [ActionController::class, 'show']);
 Route::put('/actions/{id}',    [ActionController::class, 'update']);
 Route::delete('/actions/{id}', [ActionController::class, 'destroy']);
-Route::put('/actions/{id}/{year}',  [ActionController::class, 'update']);    // ← أضف year
-Route::delete('/actions/{id}/{year}', [ActionController::class, 'destroy']);
+
 // ─── Cartons ────────────────────────────────────
 Route::get('/cartons',         [CartonController::class, 'index']);
 Route::post('/cartons',        [CartonController::class, 'store']);
 Route::get('/cartons/{id}',    [CartonController::class, 'show']);
 Route::put('/cartons/{id}',    [CartonController::class, 'update']);
 Route::delete('/cartons/{id}', [CartonController::class, 'destroy']);
-Route::put('/cartons/{id}/{year}',  [CartonController::class, 'update']);    // ← أضف year
-Route::delete('/cartons/{id}/{year}', [CartonController::class, 'destroy']);
+
 // ─── بقية الـ Resources ─────────────────────────
 Route::apiResource('vouchers',   VoucherController::class);
 Route::apiResource('customers',  CustomerController::class);
