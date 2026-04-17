@@ -102,7 +102,6 @@ class CartonController extends Controller
 
             $affected = DB::table('Carton')
                 ->where('ID1', $id)
-                ->where('year', $year)
                 ->update($data);
 
             return response()->json(
@@ -122,7 +121,6 @@ class CartonController extends Controller
         try {
             $affected = DB::table('Carton')
                 ->where('ID1', $id)
-                ->where('year', $year)
                 ->delete();
 
             return response()->json(
