@@ -10,9 +10,9 @@ class ProblemController extends Controller
     public function index(Request $request): JsonResponse
     {
         $id   = $request->get('order_id');
-        $Year = $request->get('Year', date('Y'));
+        $year = $request->get('year', date('Y'));
 
-        $q = Problem::where('Year', $Year);
+        $q = Problem::where('Year', $year);
         if ($id) $q->where('ID', $id);
 
         return response()->json($q->orderBy('_ID')->get());
