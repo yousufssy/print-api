@@ -12,6 +12,18 @@ class OrderController extends Controller
 {
     private const PER_PAGE = 50;
 
+    // ✅ الحقول التي يجب حذفها قبل أي INSERT أو UPDATE
+    // (علاقات، مفاتيح محمية، حقول وهمية لا وجود لها في الجدول)
+    private const EXCLUDED_FIELDS = [
+        'ID', 'Year', 'id', 'year',
+        'vouchers',       // علاقة Eloquent - ليست عموداً
+        'operations',     // علاقة Eloquent - ليست عموداً
+        'cartons',        // علاقة Eloquent - ليست عموداً
+        'problems',       // علاقة Eloquent - ليست عموداً
+        'created_at',
+        'updated_at',
+    ];
+
     /**
      * 🔍 البحث المتقدم - يدعم الفلاتر المتعددة
      */
@@ -20,14 +32,12 @@ class OrderController extends Controller
         try {
             $query = $this->buildSearchQuery($request->all());
 
-            // 🔄 منطق الترتيب (Sorting)
             $allowedSorts = ['ID', 'Ser', 'date_come', 'Apoent_Delv_date', 'Demand', 'Price', 'Customer', 'Year'];
             $sortBy    = in_array($request->get('sortBy', 'ID'), $allowedSorts) ? $request->get('sortBy', 'ID') : 'ID';
             $sortOrder = in_array($request->get('sortOrder', 'desc'), ['asc', 'desc']) ? $request->get('sortOrder', 'desc') : 'desc';
 
             $query->orderBy($sortBy, $sortOrder);
 
-            // 📄 الترقيم (Pagination)
             $page  = max((int) $request->get('page', 1), 1);
             $limit = min((int) $request->get('limit', self::PER_PAGE), 200);
 
@@ -85,79 +95,63 @@ class OrderController extends Controller
         if ($orderId !== null && $orderId !== '' && is_numeric($orderId)) {
             $query->where('ID', (int) $orderId);
         }
-
         if ($serial !== null && $serial !== '' && is_numeric($serial)) {
             $query->where('Ser', (int) $serial);
         }
-
         if (!empty($customer)) {
             $query->where('Customer', 'LIKE', '%' . $customer . '%');
         }
-
         if (!empty($reference)) {
             $query->where('marji3', 'LIKE', '%' . $reference . '%');
         }
-
         if (!empty($pattern)) {
             $query->where('Pattern', 'LIKE', '%' . $pattern . '%');
         }
-
         if (!empty($pattern2)) {
             $query->where('Pattern2', 'LIKE', '%' . $pattern2 . '%');
         }
-
         if (!empty($unitType)) {
             $query->where('unit', $unitType);
         }
-
         if (!empty($code)) {
             $query->where('Code', 'LIKE', '%' . $code . '%');
         }
-
         if (!empty($year)) {
             $query->where('Year', $year);
         }
-
         if ($printed !== null && $printed !== '') {
             $query->where('Printed', filter_var($printed, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
         }
-
         if ($billed !== null && $billed !== '') {
             $query->where('Billed', filter_var($billed, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
         }
-
         if ($delivered !== null && $delivered !== '') {
             $query->where('Reseved', filter_var($delivered, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
         }
-
         if (!empty($dateFrom)) {
             $query->whereDate('date_come', '>=', $dateFrom);
         }
         if (!empty($dateTo)) {
             $query->whereDate('date_come', '<=', $dateTo);
         }
-
         if (!empty($deliveryFrom)) {
             $query->whereDate('Apoent_Delv_date', '>=', $deliveryFrom);
         }
         if (!empty($deliveryTo)) {
             $query->whereDate('Apoent_Delv_date', '<=', $deliveryTo);
         }
-
         if ($demandMin !== null && $demandMin !== '' && is_numeric($demandMin)) {
             $query->where('Demand', '>=', $demandMin);
         }
         if ($demandMax !== null && $demandMax !== '' && is_numeric($demandMax)) {
             $query->where('Demand', '<=', $demandMax);
         }
-
         if ($priceMin !== null && $priceMin !== '' && is_numeric($priceMin)) {
             $query->where('Price', '>=', $priceMin);
         }
         if ($priceMax !== null && $priceMax !== '' && is_numeric($priceMax)) {
             $query->where('Price', '<=', $priceMax);
         }
-
         if (!empty($queryText)) {
             $query->where(function ($q) use ($queryText) {
                 $q->where('Customer', 'LIKE', '%' . $queryText . '%')
@@ -177,7 +171,7 @@ class OrderController extends Controller
     }
 
     /**
-     * عرض قائمة الطلبات (الرئيسية)
+     * عرض قائمة الطلبات
      */
     public function index(Request $request): JsonResponse
     {
@@ -205,24 +199,18 @@ class OrderController extends Controller
     {
         $data = $request->all();
 
-        $booleanFields = [
-            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
-            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
-            'rolling', 'rollingBack', 'Reseved'
-        ];
-
-        foreach ($booleanFields as $field) {
-            if (isset($data[$field])) {
-                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
-            }
+        foreach (self::EXCLUDED_FIELDS as $field) {
+            unset($data[$field]);
         }
+
+        $data = $this->processBooleanFields($data);
 
         $order = Order::create($data);
         return response()->json($order, 201);
     }
 
     /**
-     * عرض تفاصيل طلب واحد مع السندات المرتبطة
+     * عرض تفاصيل طلب واحد
      */
     public function show($id, $year): JsonResponse
     {
@@ -237,13 +225,15 @@ class OrderController extends Controller
 
     /**
      * تحديث بيانات الطلب
-     * ✅ الإصلاح: استخدام DB::table بدلاً من Eloquent->update()
-     *    لأن Eloquent يبني WHERE بالمفتاح الأساسي (ID) فقط،
-     *    بينما نحتاج WHERE ID و Year معاً لتفادي تعديل سجلات بنفس ID في سنوات مختلفة.
+     *
+     * ✅ السبب في استخدام DB::table بدلاً من Eloquent->update():
+     *    Eloquent يبني WHERE بالمفتاح الأساسي (ID) فقط،
+     *    مما يؤدي إلى تعديل سجلات بنفس ID في سنوات مختلفة.
+     *    DB::table يتيح تحديد WHERE ID و Year معاً بدقة.
      */
     public function update(Request $request, $id, $year): JsonResponse
     {
-        // تحقق من وجود السجل بـ ID و Year معاً قبل أي شيء
+        // تحقق من وجود السجل بـ ID و Year معاً
         $exists = Order::where('ID', $id)
                        ->where('Year', $year)
                        ->exists();
@@ -254,22 +244,21 @@ class OrderController extends Controller
 
         $data = $request->all();
 
-        // منع تعديل ID أو Year عن طريق الخطأ
-        unset($data['ID'], $data['Year'], $data['id'], $data['year']);
+        // ✅ حذف الحقول المحمية وحقول العلاقات (مثل vouchers:[])
+        foreach (self::EXCLUDED_FIELDS as $field) {
+            unset($data[$field]);
+        }
 
-        $booleanFields = [
-            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
-            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
-            'rolling', 'rollingBack', 'Reseved'
-        ];
-
-        foreach ($booleanFields as $field) {
-            if (isset($data[$field])) {
-                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+        // ✅ حذف أي حقل قيمته array أو object (علاقات غير معروفة من الـ frontend)
+        foreach ($data as $key => $value) {
+            if (is_array($value) || is_object($value)) {
+                unset($data[$key]);
             }
         }
 
-        // التحديث بـ WHERE ID و Year معاً — يتجاوز مشكلة Eloquent primary key
+        $data = $this->processBooleanFields($data);
+
+        // التحديث بـ WHERE ID و Year معاً
         DB::table('orders')
             ->where('ID', $id)
             ->where('Year', $year)
@@ -297,5 +286,25 @@ class OrderController extends Controller
         }
 
         return response()->json(['message' => 'تم حذف الطلب بنجاح']);
+    }
+
+    /**
+     * ✅ دالة مشتركة لمعالجة حقول البوليان
+     */
+    private function processBooleanFields(array $data): array
+    {
+        $booleanFields = [
+            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+            'rolling', 'rollingBack', 'Reseved'
+        ];
+
+        foreach ($booleanFields as $field) {
+            if (isset($data[$field])) {
+                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            }
+        }
+
+        return $data;
     }
 }
