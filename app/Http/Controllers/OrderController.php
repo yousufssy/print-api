@@ -7,22 +7,37 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class OrderController extends Controller
 {
     private const PER_PAGE = 50;
 
-    // ✅ الحقول التي يجب حذفها قبل أي INSERT أو UPDATE
-    // (علاقات، مفاتيح محمية، حقول وهمية لا وجود لها في الجدول)
-    private const EXCLUDED_FIELDS = [
+    // الحقول المحمية التي لا يجوز تعديلها أبداً
+    private const PROTECTED_FIELDS = [
         'ID', 'Year', 'id', 'year',
-        'vouchers',       // علاقة Eloquent - ليست عموداً
-        'operations',     // علاقة Eloquent - ليست عموداً
-        'cartons',        // علاقة Eloquent - ليست عموداً
-        'problems',       // علاقة Eloquent - ليست عموداً
-        'created_at',
-        'updated_at',
+        'created_at', 'updated_at',
     ];
+
+    /**
+     * ✅ تصفية البيانات بناءً على أعمدة الجدول الحقيقية من DB
+     *    يحل مشكلة الحقول الوهمية (vouchers, Varnish, cut1...) التي ترفضها SQL
+     */
+    private function filterToTableColumns(array $data, string $table): array
+    {
+        // جلب أسماء الأعمدة الحقيقية من الجدول
+        $columns = Schema::getColumnListing($table);
+
+        // إبقاء فقط الحقول الموجودة في الجدول
+        $filtered = array_intersect_key($data, array_flip($columns));
+
+        // حذف الحقول المحمية
+        foreach (self::PROTECTED_FIELDS as $field) {
+            unset($filtered[$field]);
+        }
+
+        return $filtered;
+    }
 
     /**
      * 🔍 البحث المتقدم - يدعم الفلاتر المتعددة
@@ -61,7 +76,7 @@ class OrderController extends Controller
     }
 
     /**
-     * بناء الاستعلام ديناميكياً بناءً على الحقول المعبأة فقط
+     * بناء الاستعلام ديناميكياً
      */
     protected function buildSearchQuery(array $filters)
     {
@@ -197,16 +212,22 @@ class OrderController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $data = $request->all();
+        try {
+            $data = $this->filterToTableColumns($request->all(), 'orders');
+            $data = $this->processBooleanFields($data);
 
-        foreach (self::EXCLUDED_FIELDS as $field) {
-            unset($data[$field]);
+            $order = Order::create($data);
+            return response()->json($order, 201);
+
+        } catch (\Exception $e) {
+            Log::error('❌ OrderController@store error: ' . $e->getMessage(), [
+                'data' => $request->all(),
+            ]);
+            return response()->json([
+                'error'   => 'حدث خطأ أثناء إنشاء الطلب',
+                'details' => $e->getMessage(),
+            ], 500);
         }
-
-        $data = $this->processBooleanFields($data);
-
-        $order = Order::create($data);
-        return response()->json($order, 201);
     }
 
     /**
@@ -225,51 +246,50 @@ class OrderController extends Controller
 
     /**
      * تحديث بيانات الطلب
-     *
-     * ✅ السبب في استخدام DB::table بدلاً من Eloquent->update():
-     *    Eloquent يبني WHERE بالمفتاح الأساسي (ID) فقط،
-     *    مما يؤدي إلى تعديل سجلات بنفس ID في سنوات مختلفة.
-     *    DB::table يتيح تحديد WHERE ID و Year معاً بدقة.
      */
     public function update(Request $request, $id, $year): JsonResponse
     {
-        // تحقق من وجود السجل بـ ID و Year معاً
-        $exists = Order::where('ID', $id)
-                       ->where('Year', $year)
-                       ->exists();
+        try {
+            // تحقق من وجود السجل بـ ID و Year معاً
+            $exists = Order::where('ID', $id)
+                           ->where('Year', $year)
+                           ->exists();
 
-        if (!$exists) {
-            return response()->json(['error' => 'الطلب غير موجود'], 404);
-        }
-
-        $data = $request->all();
-
-        // ✅ حذف الحقول المحمية وحقول العلاقات (مثل vouchers:[])
-        foreach (self::EXCLUDED_FIELDS as $field) {
-            unset($data[$field]);
-        }
-
-        // ✅ حذف أي حقل قيمته array أو object (علاقات غير معروفة من الـ frontend)
-        foreach ($data as $key => $value) {
-            if (is_array($value) || is_object($value)) {
-                unset($data[$key]);
+            if (!$exists) {
+                return response()->json(['error' => 'الطلب غير موجود'], 404);
             }
+
+            // ✅ تصفية البيانات بناءً على أعمدة الجدول الحقيقية فقط
+            // يحذف تلقائياً: vouchers, Varnish, cut1, cut2, operations... وأي حقل وهمي
+            $data = $this->filterToTableColumns($request->all(), 'orders');
+            $data = $this->processBooleanFields($data);
+
+            // تسجيل البيانات النظيفة للتشخيص
+            Log::info('OrderController@update — clean data keys: ' . implode(', ', array_keys($data)));
+
+            // التحديث بـ WHERE ID و Year معاً
+            DB::table('orders')
+                ->where('ID', $id)
+                ->where('Year', $year)
+                ->update($data);
+
+            $updated = Order::where('ID', $id)
+                            ->where('Year', $year)
+                            ->first();
+
+            return response()->json($updated);
+
+        } catch (\Exception $e) {
+            Log::error('❌ OrderController@update error: ' . $e->getMessage(), [
+                'id'   => $id,
+                'year' => $year,
+                'data' => $request->all(),
+            ]);
+            return response()->json([
+                'error'   => 'حدث خطأ أثناء تحديث الطلب',
+                'details' => $e->getMessage(),
+            ], 500);
         }
-
-        $data = $this->processBooleanFields($data);
-
-        // التحديث بـ WHERE ID و Year معاً
-        DB::table('orders')
-            ->where('ID', $id)
-            ->where('Year', $year)
-            ->update($data);
-
-        // إرجاع السجل المحدّث
-        $updated = Order::where('ID', $id)
-                        ->where('Year', $year)
-                        ->first();
-
-        return response()->json($updated);
     }
 
     /**
@@ -289,14 +309,14 @@ class OrderController extends Controller
     }
 
     /**
-     * ✅ دالة مشتركة لمعالجة حقول البوليان
+     * معالجة حقول البوليان
      */
     private function processBooleanFields(array $data): array
     {
         $booleanFields = [
             'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
             'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
-            'rolling', 'rollingBack', 'Reseved'
+            'rolling', 'rollingBack', 'Reseved',
         ];
 
         foreach ($booleanFields as $field) {
