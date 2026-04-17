@@ -240,24 +240,29 @@ class OrderController extends Controller
     /**
      * تحديث بيانات الطلب
      */
-public function update(Request $request, $id, $year): JsonResponse
-{
-    // استخدم where على كلا الحقلين لضمان التحديث في السجل الصحيح فقط
-    $affected = Order::where('ID', $id)
-                    ->where('Year', $year)
-                    ->update($request->all());
+    public function update(Request $request, $id, $year): JsonResponse
+    {
+        $order = Order::where('ID', $id)
+                      ->where('Year', $year)
+                      ->firstOrFail();
 
-    if ($affected === 0) {
-        return response()->json(['error' => 'Order not found or no changes made'], 404);
+        $data = $request->all();
+
+        $booleanFields = [
+            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+            'rolling', 'rollingBack', 'Reseved'
+        ];
+
+        foreach ($booleanFields as $field) {
+            if (isset($data[$field])) {
+                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            }
+        }
+
+        $order->update($data);
+        return response()->json($order);
     }
-
-    // ثم اجلب السجل المحدث للرد عليه
-    $order = Order::where('ID', $id)
-                  ->where('Year', $year)
-                  ->firstOrFail();
-
-    return response()->json($order);
-}
 
     /**
      * حذف الطلب
