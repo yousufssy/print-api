@@ -11,9 +11,9 @@ class DashboardController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $year = $request->get('year', date('Y'));
+        $Year = $request->get('Year', date('Y'));
 
-        $base = fn() => Order::where('Year', $year);
+        $base = fn() => Order::where('Year', $Year);
 
         $total     = $base()->count();
         $printed   = $base()->where('Printed', 'True')->count();
@@ -24,7 +24,7 @@ class DashboardController extends Controller
                             ->count();
 
         // Monthly breakdown (orders per month by date_come)
-        $monthly = Order::where('Year', $year)
+        $monthly = Order::where('Year', $Year)
             ->whereNotNull('date_come')
             ->select(DB::raw("MONTH(date_come) as month"), DB::raw('COUNT(*) as count'))
             ->groupByRaw("MONTH(date_come)")
@@ -38,12 +38,12 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        // Available years
-        $years = Order::select('Year')
+        // Available Years
+        $Years = Order::select('Year')
             ->whereNotNull('Year')->where('Year', '!=', '')
             ->distinct()->orderByDesc('Year')
             ->pluck('Year');
 
-        return response()->json(compact('total','printed','billed','delivered','monthly','recent','years'));
+        return response()->json(compact('total','printed','billed','delivered','monthly','recent','Years'));
     }
 }
