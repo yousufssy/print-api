@@ -242,12 +242,10 @@ class OrderController extends Controller
      */
     public function update(Request $request, $id, $year): JsonResponse
     {
-        $order = Order::where('ID', $id)
-                      ->where('Year', $year)
-                      ->firstOrFail();
+        // استبعاد الحقول غير الموجودة في جدول MasterW (مثل vouchers)
+        $data = $request->except(['vouchers', 'id', 'year', '_token', '_method']);
 
-        $data = $request->all();
-
+        // معالجة حقول الـ Boolean لتحويلها لـ 0 أو 1
         $booleanFields = [
             'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
             'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
@@ -260,7 +258,20 @@ class OrderController extends Controller
             }
         }
 
-        $order->update($data);
+        // قم بالتحديث مباشرة باستخدام where مزدوج لضمان التحديث في السجل الصحيح فقط
+        $affected = Order::where('ID', $id)
+                        ->where('Year', $year)
+                        ->update($data);
+
+        if ($affected === 0) {
+            return response()->json(['error' => 'Order not found or no changes made'], 404);
+        }
+
+        // ثم اجلب السجل المحدث للرد عليه
+        $order = Order::where('ID', $id)
+                      ->where('Year', $year)
+                      ->firstOrFail();
+
         return response()->json($order);
     }
 
@@ -269,9 +280,13 @@ class OrderController extends Controller
      */
     public function destroy($id, $year): JsonResponse
     {
-        Order::where('ID', $id)
-             ->where('Year', $year)
-             ->delete();
+        $deleted = Order::where('ID', $id)
+                        ->where('Year', $year)
+                        ->delete();
+
+        if ($deleted === 0) {
+            return response()->json(['error' => 'Order not found'], 404);
+        }
 
         return response()->json(['message' => 'تم حذف الطلب بنجاح']);
     }
