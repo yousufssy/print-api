@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 class OrderController extends Controller
 {
@@ -20,16 +19,22 @@ class OrderController extends Controller
     ];
 
     /**
-     * ✅ تصفية البيانات بناءً على أعمدة الجدول الحقيقية من DB
-     *    يحل مشكلة الحقول الوهمية (vouchers, Varnish, cut1...) التي ترفضها SQL
+     * ✅ جلب أعمدة الجدول الحقيقية من SQL Server
+     *    ثم تصفية البيانات للإبقاء فقط على ما هو موجود في الجدول
      */
     private function filterToTableColumns(array $data, string $table): array
     {
-        // جلب أسماء الأعمدة الحقيقية من الجدول
-        $columns = Schema::getColumnListing($table);
+        // جلب أسماء الأعمدة من SQL Server مباشرةً
+        $columns = DB::select("
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = ?
+        ", [$table]);
+
+        $columnNames = array_map(fn($col) => $col->COLUMN_NAME, $columns);
 
         // إبقاء فقط الحقول الموجودة في الجدول
-        $filtered = array_intersect_key($data, array_flip($columns));
+        $filtered = array_intersect_key($data, array_flip($columnNames));
 
         // حذف الحقول المحمية
         foreach (self::PROTECTED_FIELDS as $field) {
@@ -40,7 +45,7 @@ class OrderController extends Controller
     }
 
     /**
-     * 🔍 البحث المتقدم - يدعم الفلاتر المتعددة
+     * 🔍 البحث المتقدم
      */
     public function advancedSearch(Request $request): JsonResponse
     {
@@ -58,7 +63,6 @@ class OrderController extends Controller
 
             $total  = (clone $query)->count();
             $orders = $query->skip(($page - 1) * $limit)->take($limit)->get();
-
             $lastPage = (int) ceil($total / max($limit, 1));
 
             return response()->json([
@@ -220,9 +224,7 @@ class OrderController extends Controller
             return response()->json($order, 201);
 
         } catch (\Exception $e) {
-            Log::error('❌ OrderController@store error: ' . $e->getMessage(), [
-                'data' => $request->all(),
-            ]);
+            Log::error('❌ store error: ' . $e->getMessage(), ['data' => $request->all()]);
             return response()->json([
                 'error'   => 'حدث خطأ أثناء إنشاء الطلب',
                 'details' => $e->getMessage(),
@@ -250,7 +252,6 @@ class OrderController extends Controller
     public function update(Request $request, $id, $year): JsonResponse
     {
         try {
-            // تحقق من وجود السجل بـ ID و Year معاً
             $exists = Order::where('ID', $id)
                            ->where('Year', $year)
                            ->exists();
@@ -259,15 +260,13 @@ class OrderController extends Controller
                 return response()->json(['error' => 'الطلب غير موجود'], 404);
             }
 
-            // ✅ تصفية البيانات بناءً على أعمدة الجدول الحقيقية فقط
-            // يحذف تلقائياً: vouchers, Varnish, cut1, cut2, operations... وأي حقل وهمي
+            // ✅ تصفية الحقول بناءً على أعمدة SQL Server الحقيقية
             $data = $this->filterToTableColumns($request->all(), 'orders');
             $data = $this->processBooleanFields($data);
 
-            // تسجيل البيانات النظيفة للتشخيص
-            Log::info('OrderController@update — clean data keys: ' . implode(', ', array_keys($data)));
+            // ✅ سجّل الحقول النظيفة في اللوق
+            Log::info('update clean keys: ' . implode(', ', array_keys($data)));
 
-            // التحديث بـ WHERE ID و Year معاً
             DB::table('orders')
                 ->where('ID', $id)
                 ->where('Year', $year)
@@ -280,11 +279,11 @@ class OrderController extends Controller
             return response()->json($updated);
 
         } catch (\Exception $e) {
-            Log::error('❌ OrderController@update error: ' . $e->getMessage(), [
+            Log::error('❌ update error: ' . $e->getMessage(), [
                 'id'   => $id,
                 'year' => $year,
-                'data' => $request->all(),
             ]);
+            // ✅ إرجاع رسالة الخطأ الحقيقية لمساعدة التشخيص
             return response()->json([
                 'error'   => 'حدث خطأ أثناء تحديث الطلب',
                 'details' => $e->getMessage(),
