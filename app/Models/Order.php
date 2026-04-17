@@ -27,7 +27,7 @@ class Order extends Model
     ];
 
     // ── Scopes ──────────────────────────────────────────
-    public function scopeForYear(Builder $q, string $Year): Builder
+    public function scopeForyear(Builder $q, string $Year): Builder
     {
         return $q->where('Year', $Year);
     }
