@@ -21,7 +21,7 @@ class OrderController extends Controller
             $query = $this->buildSearchQuery($request->all());
 
             // 🔄 منطق الترتيب (Sorting)
-            $allowedSorts = ['ID', 'Ser', 'date_come', 'Apoent_Delv_date', 'Demand', 'Price', 'Customer', 'year'];
+            $allowedSorts = ['ID', 'Ser', 'date_come', 'Apoent_Delv_date', 'Demand', 'Price', 'Customer', 'Year'];
             $sortBy    = in_array($request->get('sortBy', 'ID'), $allowedSorts) ? $request->get('sortBy', 'ID') : 'ID';
             $sortOrder = in_array($request->get('sortOrder', 'desc'), ['asc', 'desc']) ? $request->get('sortOrder', 'desc') : 'desc';
 
@@ -62,7 +62,7 @@ class OrderController extends Controller
     $serial      = $filters['Ser'] ?? ($filters['serialNumber'] ?? null);
     $customer    = $filters['Customer'] ?? ($filters['customer'] ?? null);
     $reference   = $filters['marji3'] ?? ($filters['reference'] ?? null);
-    $year        = $filters['year'] ?? ($filters['year'] ?? null);
+    $Year        = $filters['Year'] ?? ($filters['Year'] ?? null);
     $pattern     = $filters['Pattern'] ?? ($filters['pattern'] ?? null);
     $pattern2    = $filters['Pattern2'] ?? ($filters['pattern2'] ?? null);
     $unitType    = $filters['unit'] ?? ($filters['unitType'] ?? null);
@@ -115,8 +115,8 @@ class OrderController extends Controller
         $query->where('Code', 'LIKE', '%' . $code . '%');
     }
 
-    if (!empty($year)) {
-        $query->where('year', $year);
+    if (!empty($Year)) {
+        $query->where('Year', $Year);
     }
 
     if ($printed !== null && $printed !== '') {
@@ -182,10 +182,10 @@ class OrderController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $year = $request->get('year', date('Y'));
+        $Year = $request->get('Year', date('Y'));
         $q    = $request->get('q');
 
-        $query = Order::where('year', $year);
+        $query = Order::where('Year', $Year);
 
         if ($q) {
             $query->where(function ($query) use ($q) {
@@ -226,10 +226,10 @@ class OrderController extends Controller
     /**
      * عرض تفاصيل طلب واحد مع السندات المرتبطة
      */
-    public function show($id, $year): JsonResponse
+    public function show($id, $Year): JsonResponse
     {
         $order = Order::where('ID', $id)
-                      ->where('year', $year)
+                      ->where('Year', $Year)
                       ->firstOrFail();
         
         $order->load('vouchers');
@@ -240,10 +240,10 @@ class OrderController extends Controller
     /**
      * تحديث بيانات الطلب
      */
-    public function update(Request $request, $id, $year): JsonResponse
+    public function update(Request $request, $id, $Year): JsonResponse
     {
         $order = Order::where('ID', $id)
-                      ->where('year', $year)
+                      ->where('Year', $Year)
                       ->firstOrFail();
 
         $data = $request->all();
@@ -267,10 +267,10 @@ class OrderController extends Controller
     /**
      * حذف الطلب
      */
-    public function destroy($id, $year): JsonResponse
+    public function destroy($id, $Year): JsonResponse
     {
         Order::where('ID', $id)
-             ->where('year', $year)
+             ->where('Year', $Year)
              ->delete();
 
         return response()->json(['message' => 'تم حذف الطلب بنجاح']);
