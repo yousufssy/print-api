@@ -16,6 +16,6 @@ class Carton extends Model
         'Type1', 'Id_carton', 'Source1', 'Supplier1',
         'Long1', 'Width1', 'Gramage1', 'Sheet_count1',
         'Out_Date', 'Out_ord_num', 'note_crt',
-        'Year', 'Price',
+        'year', 'Price',
     ];
 }
