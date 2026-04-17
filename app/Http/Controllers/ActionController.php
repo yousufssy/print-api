@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 class ActionController extends Controller
 {
     private const ALLOWED_FIELDS = [
-        'ID', 'year', 'Action', 'Color', 'Qunt_Ac', 'On', 'Machin',
+        'ID', 'Year', 'Action', 'Color', 'Qunt_Ac', 'On', 'Machin',
         'Hours', 'Kelo', 'Actual', 'Tarkeb', 'Wash', 'Electricity',
         'Taghez', 'StopVar', 'Date', 'NotesA', 'Tabrer'
     ];
@@ -18,9 +18,9 @@ class ActionController extends Controller
         // 1. إزالة الحقول المؤقتة من الـ Frontend
         $clean = array_diff_key($data, array_flip(['_isNew', 'ID1']));
 
-        // 2. توحيد Year → year فقط
-        if (isset($clean['Year']) && !isset($clean['year'])) {
-            $clean['year'] = $clean['Year'];
+        // 2. توحيد Year → Year فقط
+        if (isset($clean['Year']) && !isset($clean['Year'])) {
+            $clean['Year'] = $clean['Year'];
             unset($clean['Year']);
         }
 
@@ -31,11 +31,11 @@ class ActionController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $year    = $request->get('year', date('Y'));
+            $Year    = $request->get('Year', date('Y'));
             $orderId = $request->get('ID');
 
             $query = DB::table('actions')
-                ->where('year', $year)
+                ->where('Year', $Year)
                 ->when($orderId, fn($q) => $q->where('ID', $orderId));
 
             return response()->json(
@@ -57,8 +57,8 @@ class ActionController extends Controller
         try {
             $data = $this->cleanInput($request->all());
 
-            if (empty($data['ID']) || empty($data['year'])) {
-                return response()->json(['error' => 'Missing ID or year'], 422);
+            if (empty($data['ID']) || empty($data['Year'])) {
+                return response()->json(['error' => 'Missing ID or Year'], 422);
             }
 
             $id = DB::table('actions')->insertGetId($data);
@@ -88,7 +88,7 @@ class ActionController extends Controller
     {
         try {
             $data = $this->cleanInput($request->all());
-            unset($data['ID'], $data['year']); // لا نحدّث مفاتيح الربط
+            unset($data['ID'], $data['Year']); // لا نحدّث مفاتيح الربط
 
             $affected = DB::table('actions')
                 ->where('ID1', $id)
