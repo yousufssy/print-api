@@ -11,9 +11,9 @@ class VoucherController extends Controller
     public function index(Request $request): JsonResponse
     {
         $id   = $request->get('order_id');
-        $year = $request->get('year', date('Y'));
+        $Year = $request->get('Year', date('Y'));
 
-        $q = Voucher::where('Year', $year);
+        $q = Voucher::where('Year', $Year);
         if ($id) $q->where('ID', $id);
 
         return response()->json($q->orderBy('ID')->get());
