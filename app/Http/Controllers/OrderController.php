@@ -20,14 +20,12 @@ class OrderController extends Controller
         try {
             $query = $this->buildSearchQuery($request->all());
 
-            // 🔄 منطق الترتيب (Sorting)
             $allowedSorts = ['ID', 'Ser', 'date_come', 'Apoent_Delv_date', 'Demand', 'Price', 'Customer', 'Year'];
             $sortBy    = in_array($request->get('sortBy', 'ID'), $allowedSorts) ? $request->get('sortBy', 'ID') : 'ID';
             $sortOrder = in_array($request->get('sortOrder', 'desc'), ['asc', 'desc']) ? $request->get('sortOrder', 'desc') : 'desc';
 
             $query->orderBy($sortBy, $sortOrder);
 
-            // 📄 الترقيم (Pagination)
             $page  = max((int) $request->get('page', 1), 1);
             $limit = min((int) $request->get('limit', self::PER_PAGE), 200);
 
@@ -222,28 +220,26 @@ class OrderController extends Controller
     /**
      * تحديث بيانات الطلب
      *
-     * ✅ التعديل الوحيد عن الكود الأصلي:
-     *    بدلاً من $order->update($data) التي تستخدم WHERE ID فقط،
-     *    نستخدم DB::table مع اسم الجدول من الـ Model مباشرةً
-     *    لضمان WHERE ID و Year معاً.
+     * ✅ يعتمد على ID و Year معاً عند الحفظ
+     * ✅ يستخدم getFillable() لتصفية الحقول المسموح بها فقط
+     *    (يتجنب خطأ Unknown column تلقائياً بدون قائمة يدوية)
      */
     public function update(Request $request, $id, $year): JsonResponse
     {
-        // نجلب السجل للتحقق من وجوده بـ ID و Year معاً
+        // تحقق من وجود السجل بـ ID و Year معاً
         $order = Order::where('ID', $id)
                       ->where('Year', $year)
                       ->firstOrFail();
 
         $data = $request->all();
 
-        // حذف الحقول التي ليست أعمدة في الجدول (تسبب خطأ SQL)
-        unset($data['ID'], $data['Year'], $data['id'], $data['year']);
-        foreach ($data as $key => $value) {
-            if (is_array($value) || is_object($value)) {
-                unset($data[$key]);
-            }
-        }
+        // ✅ إبقاء فقط الحقول الموجودة في $fillable بالـ Model
+        //    هذا يحذف تلقائياً: Qunt_Ac, vouchers, tabkha, bals, cut1, cut2...
+        //    وأي حقل غير موجود في الجدول
+        $fillable = $order->getFillable();
+        $data = array_intersect_key($data, array_flip($fillable));
 
+        // معالجة حقول البوليان
         $booleanFields = [
             'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
             'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
@@ -256,13 +252,12 @@ class OrderController extends Controller
             }
         }
 
-        // ✅ $order->getTable() يأخذ اسم الجدول الصحيح من الـ Model تلقائياً
+        // ✅ التحديث بـ WHERE ID و Year معاً باستخدام اسم الجدول من الـ Model
         DB::table($order->getTable())
             ->where('ID', $id)
             ->where('Year', $year)
             ->update($data);
 
-        // نرجع السجل المحدّث
         $order->refresh();
         return response()->json($order);
     }
