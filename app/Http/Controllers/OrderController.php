@@ -183,51 +183,42 @@ class OrderController extends Controller
     /**
      * إنشاء طلب جديد
      */
-    public function store(Request $request): JsonResponse
-    {
-        $data = $request->all();
-    
-        $booleanFields = [
-            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
-            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
-            'rolling', 'rollingBack', 'Reseved'
-        ];
-    
-        foreach ($booleanFields as $field) {
-            if (isset($data[$field])) {
-                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
-            }
-        }
-    
-        // ✅ حماية من التعارض — يتحقق أن ID غير مستخدم
-        // إذا كان مستخدماً يأخذ أعلى قيمة + 1 تلقائياً
-        DB::transaction(function () use (&$data) {
-            $requestedId = (int) ($data['ID'] ?? 0);
-            $year        = $data['Year'] ?? date('Y');
-    
-            $tableName = (new Order())->getTable();
-    
-            // هل الـ ID المطلوب محجوز؟
-            $idExists = DB::table($tableName)
-                          ->where('ID', $requestedId)
-                          ->exists();
-    
-            if ($idExists) {
-                // ✅ خذ أعلى ID موجود + 1
-                $maxId = DB::table($tableName)->max('ID');
-                $data['ID'] = $maxId + 1;
-    
-                Log::warning("⚠️ ID {$requestedId} محجوز — تم تعيين ID جديد: {$data['ID']}");
-            }
-        });
-    
-        $order = Order::create($data);
-    
+public function store(Request $request): JsonResponse
+{
+    $data = $request->all();
+
+    // ✅ تحقق أن ID و Year معاً غير موجودَين قبل أي شيء
+    $requestedId = (int) ($data['ID'] ?? 0);
+    $year        = $data['Year'] ?? date('Y');
+    $tableName   = (new Order())->getTable();
+
+    $idAndYearExists = DB::table($tableName)
+                         ->where('ID', $requestedId)
+                         ->where('Year', $year)
+                         ->exists();
+
+    if ($idAndYearExists) {
         return response()->json([
-            'order'      => $order,
-            'final_id'   => $order->ID,  // ✅ أرجع الـ ID الفعلي للـ frontend
-        ], 201);
+            'error' => "الرقم {$requestedId} مستخدم مسبقاً في سنة {$year}. الرجاء تغيير الرقم أو استخدام زر 🔄 للحصول على رقم جديد.",
+            'code'  => 'ID_YEAR_DUPLICATE',
+        ], 409); // 409 Conflict
     }
+
+    $booleanFields = [
+        'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+        'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+        'rolling', 'rollingBack', 'Reseved'
+    ];
+
+    foreach ($booleanFields as $field) {
+        if (isset($data[$field])) {
+            $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+        }
+    }
+
+    $order = Order::create($data);
+    return response()->json($order, 201);
+}
 
     /**
      * عرض تفاصيل طلب واحد مع السندات المرتبطة
