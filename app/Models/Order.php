@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 class Order extends Model
 {
     protected $table      = 'MasterW';
-    protected $primaryKey = 'ID';
+    protected $primaryKey = ['ID', 'Year'];
     public    $timestamps = false;
 
    protected $fillable = [
