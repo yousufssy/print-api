@@ -5,198 +5,40 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
     private const PER_PAGE = 50;
 
     /**
-     * 🔍 البحث المتقدم - يدعم الفلاتر المتعددة
-     */
-    public function advancedSearch(Request $request): JsonResponse
-    {
-        try {
-            $query = $this->buildSearchQuery($request->all());
-
-            // 🔄 منطق الترتيب (Sorting)
-            $allowedSorts = ['ID', 'Ser', 'date_come', 'Apoent_Delv_date', 'Demand', 'Price', 'Customer', 'Year'];
-            $sortBy    = in_array($request->get('sortBy', 'ID'), $allowedSorts) ? $request->get('sortBy', 'ID') : 'ID';
-            $sortOrder = in_array($request->get('sortOrder', 'desc'), ['asc', 'desc']) ? $request->get('sortOrder', 'desc') : 'desc';
-
-            $query->orderBy($sortBy, $sortOrder);
-
-            // 📄 الترقيم (Pagination)
-            $page  = max((int) $request->get('page', 1), 1);
-            $limit = min((int) $request->get('limit', self::PER_PAGE), 200);
-
-            $total  = (clone $query)->count();
-            $orders = $query->skip(($page - 1) * $limit)->take($limit)->get();
-
-            $lastPage = (int) ceil($total / max($limit, 1));
-
-            return response()->json([
-                'data'       => $orders,
-                'total'      => $total,
-                'page'       => $page,
-                'limit'      => $limit,
-                'last_page'  => $lastPage,
-                'totalPages' => $lastPage,
-            ]);
-        } catch (\Exception $e) {
-            Log::error("خطأ في البحث المتقدم: " . $e->getMessage());
-            return response()->json(['error' => 'حدث خطأ أثناء معالجة البحث'], 500);
-        }
-    }
-
-    /**
-     * بناء الاستعلام ديناميكياً بناءً على الحقول المعبأة فقط
-     */
-    protected function buildSearchQuery(array $filters)
-    {
-        $query = Order::query();
-
-        $orderId     = $filters['ID'] ?? ($filters['orderId'] ?? null);
-        $serial      = $filters['Ser'] ?? ($filters['serialNumber'] ?? null);
-        $customer    = $filters['Customer'] ?? ($filters['customer'] ?? null);
-        $reference   = $filters['marji3'] ?? ($filters['reference'] ?? null);
-        $year        = $filters['Year'] ?? ($filters['year'] ?? null);
-        $pattern     = $filters['Pattern'] ?? ($filters['pattern'] ?? null);
-        $pattern2    = $filters['Pattern2'] ?? ($filters['pattern2'] ?? null);
-        $unitType    = $filters['unit'] ?? ($filters['unitType'] ?? null);
-        $code        = $filters['Code'] ?? ($filters['code'] ?? null);
-
-        $dateFrom    = $filters['date_from'] ?? ($filters['dateComeFrom'] ?? null);
-        $dateTo      = $filters['date_to'] ?? ($filters['dateComeTo'] ?? null);
-        $deliveryFrom = $filters['deliveryDateFrom'] ?? null;
-        $deliveryTo   = $filters['deliveryDateTo'] ?? null;
-
-        $demandMin   = $filters['demandMin'] ?? null;
-        $demandMax   = $filters['demandMax'] ?? null;
-        $priceMin    = $filters['priceMin'] ?? null;
-        $priceMax    = $filters['priceMax'] ?? null;
-
-        $printed     = $filters['Printed'] ?? ($filters['isPrinted'] ?? null);
-        $billed      = $filters['Billed'] ?? ($filters['isBilled'] ?? null);
-        $delivered   = $filters['Reseved'] ?? ($filters['isDelivered'] ?? null);
-        $queryText   = $filters['query'] ?? null;
-
-        if ($orderId !== null && $orderId !== '' && is_numeric($orderId)) {
-            $query->where('ID', (int) $orderId);
-        }
-
-        if ($serial !== null && $serial !== '' && is_numeric($serial)) {
-            $query->where('Ser', (int) $serial);
-        }
-
-        if (!empty($customer)) {
-            $query->where('Customer', 'LIKE', '%' . $customer . '%');
-        }
-
-        if (!empty($reference)) {
-            $query->where('marji3', 'LIKE', '%' . $reference . '%');
-        }
-
-        if (!empty($pattern)) {
-            $query->where('Pattern', 'LIKE', '%' . $pattern . '%');
-        }
-
-        if (!empty($pattern2)) {
-            $query->where('Pattern2', 'LIKE', '%' . $pattern2 . '%');
-        }
-
-        if (!empty($unitType)) {
-            $query->where('unit', $unitType);
-        }
-
-        if (!empty($code)) {
-            $query->where('Code', 'LIKE', '%' . $code . '%');
-        }
-
-        if (!empty($year)) {
-            $query->where('Year', $year);
-        }
-
-        if ($printed !== null && $printed !== '') {
-            $query->where('Printed', filter_var($printed, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
-        }
-
-        if ($billed !== null && $billed !== '') {
-            $query->where('Billed', filter_var($billed, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
-        }
-
-        if ($delivered !== null && $delivered !== '') {
-            $query->where('Reseved', filter_var($delivered, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
-        }
-
-        if (!empty($dateFrom)) {
-            $query->whereDate('date_come', '>=', $dateFrom);
-        }
-        if (!empty($dateTo)) {
-            $query->whereDate('date_come', '<=', $dateTo);
-        }
-
-        if (!empty($deliveryFrom)) {
-            $query->whereDate('Apoent_Delv_date', '>=', $deliveryFrom);
-        }
-        if (!empty($deliveryTo)) {
-            $query->whereDate('Apoent_Delv_date', '<=', $deliveryTo);
-        }
-
-        if ($demandMin !== null && $demandMin !== '' && is_numeric($demandMin)) {
-            $query->where('Demand', '>=', $demandMin);
-        }
-        if ($demandMax !== null && $demandMax !== '' && is_numeric($demandMax)) {
-            $query->where('Demand', '<=', $demandMax);
-        }
-
-        if ($priceMin !== null && $priceMin !== '' && is_numeric($priceMin)) {
-            $query->where('Price', '>=', $priceMin);
-        }
-        if ($priceMax !== null && $priceMax !== '' && is_numeric($priceMax)) {
-            $query->where('Price', '<=', $priceMax);
-        }
-
-        if (!empty($queryText)) {
-            $query->where(function ($q) use ($queryText) {
-                $q->where('Customer', 'LIKE', '%' . $queryText . '%')
-                  ->orWhere('Pattern', 'LIKE', '%' . $queryText . '%')
-                  ->orWhere('Pattern2', 'LIKE', '%' . $queryText . '%')
-                  ->orWhere('marji3', 'LIKE', '%' . $queryText . '%')
-                  ->orWhereRaw('CAST([Demand] AS NVARCHAR(50)) LIKE ?', ['%' . $queryText . '%']);
-
-                if (is_numeric($queryText)) {
-                    $q->orWhere('ID', (int) $queryText)
-                      ->orWhere('Ser', (int) $queryText);
-                }
-            });
-        }
-
-        return $query;
-    }
-
-    /**
-     * عرض قائمة الطلبات (الرئيسية)
+     * عرض قائمة الطلبات
      */
     public function index(Request $request): JsonResponse
     {
-        $year = $request->get('year', date('Y'));
-        $q    = $request->get('q');
+        try {
+            $year = $request->get('year', date('Y'));
+            $q = $request->get('q');
 
-        $query = Order::where('Year', $year);
+            $query = Order::where('Year', $year);
 
-        if ($q) {
-            $query->where(function ($query) use ($q) {
-                $query->where('Customer', 'like', "%$q%")
-                      ->orWhere('Demand', 'like', "%$q%")
-                      ->orWhere('ID', $q);
-            });
+            if ($q) {
+                $query->where(function ($query) use ($q) {
+                    $query->where('Customer', 'like', "%$q%")
+                          ->orWhere('Demand', 'like', "%$q%")
+                          ->orWhere('ID', $q);
+                });
+            }
+
+            $orders = $query->orderByDesc('ID')->paginate(self::PER_PAGE);
+            
+            return response()->json($orders);
+            
+        } catch (\Exception $e) {
+            Log::error('خطأ في index: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $orders = $query->orderByDesc('ID')->paginate(self::PER_PAGE);
-        return response()->json($orders);
     }
 
     /**
@@ -207,12 +49,12 @@ class OrderController extends Controller
         try {
             $data = $request->all();
 
-            // التحقق من وجود Year
-            if (!isset($data['Year']) || empty($data['Year'])) {
+            // تعيين السنة إذا لم تكن موجودة
+            if (!isset($data['Year'])) {
                 $data['Year'] = date('Y');
             }
 
-            // معالجة حقول الـ Boolean
+            // معالجة الحقول Boolean
             $booleanFields = [
                 'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
                 'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
@@ -221,72 +63,79 @@ class OrderController extends Controller
 
             foreach ($booleanFields as $field) {
                 if (isset($data[$field])) {
-                    $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+                    $data[$field] = $data[$field] ? 1 : 0;
                 }
             }
 
-            // التحقق من عدم وجود نفس ID و Year
-            if (isset($data['ID'])) {
-                $exists = Order::where('ID', $data['ID'])
-                              ->where('Year', $data['Year'])
-                              ->exists();
-                
-                if ($exists) {
-                    return response()->json([
-                        'error' => 'يوجد طلب بنفس الرقم في نفس السنة'
-                    ], 422);
-                }
-            }
-
+            // إنشاء الطلب
             $order = Order::create($data);
             
             return response()->json($order, 201);
             
         } catch (\Exception $e) {
-            Log::error("خطأ في إنشاء الطلب: " . $e->getMessage());
-            return response()->json(['error' => 'حدث خطأ أثناء إنشاء الطلب'], 500);
+            Log::error('خطأ في store: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'فشل في إنشاء الطلب',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
     /**
-     * عرض تفاصيل طلب واحد
+     * عرض طلب واحد
      */
     public function show($id, $year): JsonResponse
     {
         try {
             $order = Order::where('ID', $id)
                           ->where('Year', $year)
-                          ->firstOrFail();
-            
-            $order->load('vouchers');
+                          ->first();
+
+            if (!$order) {
+                return response()->json([
+                    'error' => 'الطلب غير موجود'
+                ], 404);
+            }
+
+            // تحميل السندات إذا وجدت
+            try {
+                $order->load('vouchers');
+            } catch (\Exception $e) {
+                // تجاهل خطأ تحميل السندات
+            }
             
             return response()->json($order);
             
         } catch (\Exception $e) {
-            return response()->json(['error' => 'الطلب غير موجود'], 404);
+            Log::error('خطأ في show: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'فشل في عرض الطلب',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
     /**
-     * تحديث بيانات الطلب (يعتمد على ID و Year)
+     * تحديث الطلب
      */
     public function update(Request $request, $id, $year): JsonResponse
     {
         try {
-            // البحث باستخدام ID و Year معاً
+            // البحث عن الطلب
             $order = Order::where('ID', $id)
                           ->where('Year', $year)
                           ->first();
 
             if (!$order) {
                 return response()->json([
-                    'error' => 'الطلب غير موجود (ID: ' . $id . ', Year: ' . $year . ')'
+                    'error' => 'الطلب غير موجود',
+                    'details' => "ID: {$id}, Year: {$year}"
                 ], 404);
             }
 
             $data = $request->all();
 
-            // منع تعديل المفاتيح الأساسية
+            // إزالة الحقول التي لا يجب تعديلها
             unset($data['ID']);
             unset($data['Year']);
 
@@ -299,26 +148,32 @@ class OrderController extends Controller
 
             foreach ($booleanFields as $field) {
                 if (isset($data[$field])) {
-                    $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+                    $data[$field] = $data[$field] ? 1 : 0;
                 }
             }
 
             // تحديث البيانات
             $order->update($data);
             
-            // إعادة تحميل البيانات
-            $order->refresh();
+            // إعادة تحميل البيانات المحدثة
+            $order = Order::where('ID', $id)
+                          ->where('Year', $year)
+                          ->first();
             
             return response()->json($order);
             
         } catch (\Exception $e) {
-            Log::error("خطأ في تحديث الطلب: " . $e->getMessage());
-            return response()->json(['error' => 'حدث خطأ أثناء تحديث الطلب'], 500);
+            Log::error('خطأ في update: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'error' => 'فشل في تحديث الطلب',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
     /**
-     * حذف الطلب (يعتمد على ID و Year)
+     * حذف الطلب
      */
     public function destroy($id, $year): JsonResponse
     {
@@ -344,8 +199,113 @@ class OrderController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            Log::error("خطأ في حذف الطلب: " . $e->getMessage());
-            return response()->json(['error' => 'حدث خطأ أثناء حذف الطلب'], 500);
+            Log::error('خطأ في destroy: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'فشل في حذف الطلب',
+                'message' => $e->getMessage()
+            ], 500);
         }
+    }
+
+    /**
+     * البحث المتقدم
+     */
+    public function advancedSearch(Request $request): JsonResponse
+    {
+        try {
+            $query = $this->buildSearchQuery($request->all());
+
+            // الترتيب
+            $allowedSorts = ['ID', 'Ser', 'date_come', 'Apoent_Delv_date', 'Demand', 'Price', 'Customer', 'Year'];
+            $sortBy = $request->get('sortBy', 'ID');
+            $sortOrder = $request->get('sortOrder', 'desc');
+
+            if (in_array($sortBy, $allowedSorts)) {
+                $query->orderBy($sortBy, $sortOrder);
+            }
+
+            // الترقيم
+            $page = max((int) $request->get('page', 1), 1);
+            $limit = min((int) $request->get('limit', self::PER_PAGE), 200);
+
+            $total = $query->count();
+            $orders = $query->skip(($page - 1) * $limit)->take($limit)->get();
+
+            $lastPage = (int) ceil($total / max($limit, 1));
+
+            return response()->json([
+                'data' => $orders,
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+                'last_page' => $lastPage,
+                'totalPages' => $lastPage,
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('خطأ في advancedSearch: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'حدث خطأ أثناء البحث',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * بناء استعلام البحث
+     */
+    protected function buildSearchQuery(array $filters)
+    {
+        $query = Order::query();
+
+        // ID
+        if (!empty($filters['ID']) && is_numeric($filters['ID'])) {
+            $query->where('ID', (int) $filters['ID']);
+        }
+
+        // Serial
+        if (!empty($filters['Ser']) && is_numeric($filters['Ser'])) {
+            $query->where('Ser', (int) $filters['Ser']);
+        }
+
+        // Customer
+        if (!empty($filters['Customer'])) {
+            $query->where('Customer', 'LIKE', '%' . $filters['Customer'] . '%');
+        }
+
+        // Year
+        if (!empty($filters['Year'])) {
+            $query->where('Year', $filters['Year']);
+        }
+
+        // Pattern
+        if (!empty($filters['Pattern'])) {
+            $query->where('Pattern', 'LIKE', '%' . $filters['Pattern'] . '%');
+        }
+
+        // Date Range
+        if (!empty($filters['date_from'])) {
+            $query->whereDate('date_come', '>=', $filters['date_from']);
+        }
+        if (!empty($filters['date_to'])) {
+            $query->whereDate('date_come', '<=', $filters['date_to']);
+        }
+
+        // Printed
+        if (isset($filters['Printed']) && $filters['Printed'] !== '') {
+            $query->where('Printed', $filters['Printed'] ? 1 : 0);
+        }
+
+        // Billed
+        if (isset($filters['Billed']) && $filters['Billed'] !== '') {
+            $query->where('Billed', $filters['Billed'] ? 1 : 0);
+        }
+
+        // Delivered
+        if (isset($filters['Reseved']) && $filters['Reseved'] !== '') {
+            $query->where('Reseved', $filters['Reseved'] ? 1 : 0);
+        }
+
+        return $query;
     }
 }
