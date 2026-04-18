@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
@@ -42,7 +43,7 @@ class OrderController extends Controller
                 'page'       => $page,
                 'limit'      => $limit,
                 'last_page'  => $lastPage,
-                'totalPages' => $lastPage, // keep frontend compatibility
+                'totalPages' => $lastPage,
             ]);
         } catch (\Exception $e) {
             Log::error("خطأ في البحث المتقدم: " . $e->getMessage());
@@ -57,7 +58,6 @@ class OrderController extends Controller
     {
         $query = Order::query();
 
-        // Support both legacy API names and new frontend names.
         $orderId     = $filters['ID'] ?? ($filters['orderId'] ?? null);
         $serial      = $filters['Ser'] ?? ($filters['serialNumber'] ?? null);
         $customer    = $filters['Customer'] ?? ($filters['customer'] ?? null);
@@ -159,7 +159,6 @@ class OrderController extends Controller
             $query->where('Price', '<=', $priceMax);
         }
 
-        // Generic full-text-ish query across key fields.
         if (!empty($queryText)) {
             $query->where(function ($q) use ($queryText) {
                 $q->where('Customer', 'LIKE', '%' . $queryText . '%')
@@ -205,108 +204,148 @@ class OrderController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $data = $request->all();
+        try {
+            $data = $request->all();
 
-        // التحقق من وجود Year في البيانات، وإلا استخدام السنة الحالية
-        if (!isset($data['Year']) || empty($data['Year'])) {
-            $data['Year'] = date('Y');
-        }
-
-        // معالجة حقول الـ Boolean لتحويلها لـ 0 أو 1
-        $booleanFields = [
-            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
-            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
-            'rolling', 'rollingBack', 'Reseved'
-        ];
-
-        foreach ($booleanFields as $field) {
-            if (isset($data[$field])) {
-                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            // التحقق من وجود Year
+            if (!isset($data['Year']) || empty($data['Year'])) {
+                $data['Year'] = date('Y');
             }
-        }
 
-        // التحقق من عدم وجود طلب بنفس ID و Year
-        if (isset($data['ID'])) {
-            $exists = Order::where('ID', $data['ID'])
-                          ->where('Year', $data['Year'])
-                          ->exists();
+            // معالجة حقول الـ Boolean
+            $booleanFields = [
+                'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+                'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+                'rolling', 'rollingBack', 'Reseved'
+            ];
+
+            foreach ($booleanFields as $field) {
+                if (isset($data[$field])) {
+                    $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+                }
+            }
+
+            // التحقق من عدم وجود نفس ID و Year
+            if (isset($data['ID'])) {
+                $exists = Order::where('ID', $data['ID'])
+                              ->where('Year', $data['Year'])
+                              ->exists();
+                
+                if ($exists) {
+                    return response()->json([
+                        'error' => 'يوجد طلب بنفس الرقم في نفس السنة'
+                    ], 422);
+                }
+            }
+
+            $order = Order::create($data);
             
-            if ($exists) {
-                return response()->json([
-                    'error' => 'يوجد طلب بنفس الرقم في نفس السنة'
-                ], 422);
-            }
+            return response()->json($order, 201);
+            
+        } catch (\Exception $e) {
+            Log::error("خطأ في إنشاء الطلب: " . $e->getMessage());
+            return response()->json(['error' => 'حدث خطأ أثناء إنشاء الطلب'], 500);
         }
-
-        $order = Order::create($data);
-        return response()->json($order, 201);
     }
 
     /**
-     * عرض تفاصيل طلب واحد مع السندات المرتبطة
+     * عرض تفاصيل طلب واحد
      */
     public function show($id, $year): JsonResponse
     {
-        $order = Order::where('ID', $id)
-                      ->where('Year', $year)
-                      ->firstOrFail();
-        
-        $order->load('vouchers');
-        
-        return response()->json($order);
+        try {
+            $order = Order::where('ID', $id)
+                          ->where('Year', $year)
+                          ->firstOrFail();
+            
+            $order->load('vouchers');
+            
+            return response()->json($order);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'الطلب غير موجود'], 404);
+        }
     }
 
     /**
-     * تحديث بيانات الطلب
+     * تحديث بيانات الطلب (يعتمد على ID و Year)
      */
     public function update(Request $request, $id, $year): JsonResponse
     {
-        // البحث عن الطلب باستخدام ID و Year معاً
-        $order = Order::where('ID', $id)
-                      ->where('Year', $year)
-                      ->firstOrFail();
+        try {
+            // البحث باستخدام ID و Year معاً
+            $order = Order::where('ID', $id)
+                          ->where('Year', $year)
+                          ->first();
 
-        $data = $request->all();
-
-        // منع تغيير ID أو Year في التحديث لتجنب التعارض
-        unset($data['ID']);
-        unset($data['Year']);
-
-        $booleanFields = [
-            'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
-            'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
-            'rolling', 'rollingBack', 'Reseved'
-        ];
-
-        foreach ($booleanFields as $field) {
-            if (isset($data[$field])) {
-                $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            if (!$order) {
+                return response()->json([
+                    'error' => 'الطلب غير موجود (ID: ' . $id . ', Year: ' . $year . ')'
+                ], 404);
             }
-        }
 
-        $order->update($data);
-        
-        // إعادة تحميل البيانات للحصول على القيم المحدثة
-        $order->refresh();
-        
-        return response()->json($order);
+            $data = $request->all();
+
+            // منع تعديل المفاتيح الأساسية
+            unset($data['ID']);
+            unset($data['Year']);
+
+            // معالجة الحقول Boolean
+            $booleanFields = [
+                'Printed', 'Billed', 'DubelM', 'varnich', 'uv_Spot', 'uv',
+                'seluvan_lum', 'seluvan_mat', 'Tay', 'Tad3em', 'harary',
+                'rolling', 'rollingBack', 'Reseved'
+            ];
+
+            foreach ($booleanFields as $field) {
+                if (isset($data[$field])) {
+                    $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+                }
+            }
+
+            // تحديث البيانات
+            $order->update($data);
+            
+            // إعادة تحميل البيانات
+            $order->refresh();
+            
+            return response()->json($order);
+            
+        } catch (\Exception $e) {
+            Log::error("خطأ في تحديث الطلب: " . $e->getMessage());
+            return response()->json(['error' => 'حدث خطأ أثناء تحديث الطلب'], 500);
+        }
     }
 
     /**
-     * حذف الطلب
+     * حذف الطلب (يعتمد على ID و Year)
      */
     public function destroy($id, $year): JsonResponse
     {
-        $deleted = Order::where('ID', $id)
-                       ->where('Year', $year)
-                       ->delete();
+        try {
+            $order = Order::where('ID', $id)
+                         ->where('Year', $year)
+                         ->first();
 
-        if (!$deleted) {
+            if (!$order) {
+                return response()->json([
+                    'error' => 'الطلب غير موجود'
+                ], 404);
+            }
+
+            $order->delete();
+
             return response()->json([
-                'error' => 'الطلب غير موجود'
-            ], 404);
+                'message' => 'تم حذف الطلب بنجاح',
+                'deleted' => [
+                    'ID' => $id,
+                    'Year' => $year
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error("خطأ في حذف الطلب: " . $e->getMessage());
+            return response()->json(['error' => 'حدث خطأ أثناء حذف الطلب'], 500);
         }
-
-        return response()->json(['message' => 'تم حذف الطلب بنجاح']);
     }
 }
