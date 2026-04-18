@@ -185,23 +185,27 @@ class OrderController extends Controller
      */
 public function store(Request $request): JsonResponse
 {
-    $data = $request->all();
+    $data      = $request->all();
+    $tableName = (new Order())->getTable();
+    $year      = $data['Year'] ?? date('Y');
 
-    // ✅ تحقق أن ID و Year معاً غير موجودَين قبل أي شيء
-    $requestedId = (int) ($data['ID'] ?? 0);
-    $year        = $data['Year'] ?? date('Y');
-    $tableName   = (new Order())->getTable();
+    // ✅ إذا كان ID فارغاً أو غير موجود — احسب max+1
+    if (empty($data['ID'])) {
+        $maxId      = DB::table($tableName)->max('ID') ?? 0;
+        $data['ID'] = $maxId + 1;
+    } else {
+        // ✅ المستخدم أدخل ID — تحقق أن ID + Year غير موجودَين معاً
+        $exists = DB::table($tableName)
+                    ->where('ID', (int) $data['ID'])
+                    ->where('Year', $year)
+                    ->exists();
 
-    $idAndYearExists = DB::table($tableName)
-                         ->where('ID', $requestedId)
-                         ->where('Year', $year)
-                         ->exists();
-
-    if ($idAndYearExists) {
-        return response()->json([
-            'error' => "الرقم {$requestedId} مستخدم مسبقاً في سنة {$year}. الرجاء تغيير الرقم أو استخدام زر 🔄 للحصول على رقم جديد.",
-            'code'  => 'ID_YEAR_DUPLICATE',
-        ], 409); // 409 Conflict
+        if ($exists) {
+            return response()->json([
+                'error' => "الرقم {$data['ID']} مستخدم مسبقاً في سنة {$year}. الرجاء اختيار رقم مختلف.",
+                'code'  => 'ID_YEAR_DUPLICATE',
+            ], 409);
+        }
     }
 
     $booleanFields = [
@@ -215,6 +219,10 @@ public function store(Request $request): JsonResponse
             $data[$field] = filter_var($data[$field], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
         }
     }
+
+    // ✅ تصفية الحقول بـ fillable
+    $fillable = (new Order())->getFillable();
+    $data     = array_intersect_key($data, array_flip($fillable));
 
     $order = Order::create($data);
     return response()->json($order, 201);
