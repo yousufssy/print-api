@@ -142,7 +142,7 @@ class OrderController extends Controller
         if ($priceMax !== null && $priceMax !== '' && is_numeric($priceMax)) {
             $query->where('Price', '<=', $priceMax);
         }
-        if (!empty(formto)) {
+        if (!empty($formto)) {
             $query->where('Form', 'LIKE', '%' . $formto . '%');
         }
         if (!empty($queryText)) {
