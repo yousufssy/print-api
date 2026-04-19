@@ -79,6 +79,7 @@ class OrderController extends Controller
         $billed       = $filters['Billed']           ?? ($filters['isBilled']      ?? null);
         $delivered    = $filters['Reseved']          ?? ($filters['isDelivered']   ?? null);
         $queryText    = $filters['query']            ?? null;
+        $formto       = $filters['Form']             ?? ($filters['code']          ?? null);
 
         if ($orderId !== null && $orderId !== '' && is_numeric($orderId)) {
             $query->where('ID', (int) $orderId);
@@ -119,6 +120,7 @@ class OrderController extends Controller
         if (!empty($dateFrom)) {
             $query->whereDate('date_come', '>=', $dateFrom);
         }
+    
         if (!empty($dateTo)) {
             $query->whereDate('date_come', '<=', $dateTo);
         }
@@ -139,6 +141,9 @@ class OrderController extends Controller
         }
         if ($priceMax !== null && $priceMax !== '' && is_numeric($priceMax)) {
             $query->where('Price', '<=', $priceMax);
+        }
+        if (!empty(formto)) {
+            $query->where('Form', 'LIKE', '%' . $formto . '%');
         }
         if (!empty($queryText)) {
             $query->where(function ($q) use ($queryText) {
